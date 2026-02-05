@@ -1,0 +1,37 @@
+<!-- templates/base.html -->
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <title>{% block title %}AI Personal Trainer{% endblock %}</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body class="{% block body_class %}{% endblock %}">
+
+    <header class="site-header">
+        <div class="container">
+            <h1 class="brand"><a href="{{ url_for('index') }}">AI Personal Trainer</a></h1>
+            <nav class="main-nav" aria-label="Main navigation">
+                <a href="{{ url_for('workout') }}">Workout</a>
+                <a href="{{ url_for('nutrition') }}">Nutrition</a>
+                <a href="{{ url_for('progress') }}">Progress</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="site-main container">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="site-footer">
+        <div class="container">
+            <small>© AI Trainer • Built with Flask</small>
+        </div>
+    </footer>
+
+</body>
+
+</html>

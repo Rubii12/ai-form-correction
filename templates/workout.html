@@ -1,0 +1,286 @@
+{% extends "base.html" %}
+{% block title %}Workout — AI Trainer{% endblock %}
+{% block body_class %}workout{% endblock %}
+
+{% block content %}
+<h2>Workout</h2>
+<p class="muted">Choose an exercise — the live camera feed and session info appear to the right.</p>
+
+<div class="exercise-links" aria-label="Exercises" role="tablist">
+    <a class="pill" href="?exercise=squat" data-ex="squat">Squat</a>
+    <a class="pill" href="?exercise=push_up" data-ex="push_up">Push-up</a>
+    <a class="pill" href="?exercise=bench_press" data-ex="bench_press">Bench</a>
+    <a class="pill" href="?exercise=dips" data-ex="dips">Dips</a>
+    <a class="pill" href="?exercise=pull_up" data-ex="pull_up">Pull-up</a>
+    <a class="pill" href="?exercise=crunches" data-ex="crunches">Crunches</a>
+    <a class="pill" href="?exercise=jumping_jacks" data-ex="jumping_jacks">Jumping Jacks</a>
+    <a class="pill" href="?exercise=tricep_extension" data-ex="tricep_extension">Tricep Ext.</a>
+</div>
+
+<div class="video-and-ui" style="display:flex;gap:24px;flex-wrap:wrap;justify-content:center;align-items:flex-start;">
+    <!-- Video -->
+    <div class="video-wrap" style="flex:0 1 640px; position:relative;">
+        <img id="liveFeed" src="{{ url_for('video_feed') }}?exercise={{ request.args.get('exercise', 'squat') }}"
+            alt="Live feed" width="640" height="480" style="display:block;">
+    </div>
+
+    <!-- Floating info panel -->
+    <aside id="liveInfoBox" class="card live-info" aria-live="polite" role="region" style="width:320px; max-width:94%;">
+        <div class="live-info-header" style="display:flex;justify-content:space-between;align-items:center;">
+            <strong id="liveExerciseLabel">{{ request.args.get('exercise','squat')|replace('_',' ')|title }}</strong>
+            <div style="display:flex;gap:6px;">
+                <button id="pinInfo" class="small ghost" title="Pin/unpin" aria-pressed="false">📌</button>
+                <button id="closeInfo" class="small ghost" title="Close">✕</button>
+            </div>
+        </div>
+
+        <div class="live-metrics" style="display:flex;gap:8px;margin-top:12px;">
+            <div class="metric" style="flex:1;text-align:center">
+                <div class="metric-label">Angle</div>
+                <div class="metric-value" id="liveAngle">—</div>
+            </div>
+            <div class="metric" style="flex:1;text-align:center">
+                <div class="metric-label">Reps</div>
+                <div class="metric-value" id="liveReps">0</div>
+            </div>
+            <div class="metric" style="flex:1;text-align:center">
+                <div class="metric-label">Status</div>
+                <div class="metric-value small" id="liveStatus">—</div>
+            </div>
+        </div>
+
+        <div class="live-suggestion" id="liveSuggestion" style="margin-top:10px; min-height:44px; color:#444;">
+            No suggestions yet.
+        </div>
+
+        <div style="margin-top:10px; display:flex; gap:8px;">
+            <button id="resetReps" class="btn ghost" style="flex:1;">Reset</button>
+            <button id="saveReps" class="btn" style="flex:1;">Save</button>
+        </div>
+
+        <div class="recent-reps" id="recentReps" style="margin-top:8px; font-size:12px; color:#666;">Recent: —</div>
+    </aside>
+</div>
+
+<style>
+    /* small local tweaks if not in style.css */
+    .live-info {
+        padding: 12px;
+        border-radius: 12px;
+        box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
+        background: linear-gradient(180deg, #ffffff, #fffdf6);
+        color: #111;
+        z-index: 1200;
+    }
+
+    .live-info .metric-value {
+        font-weight: 700;
+        font-size: 18px;
+    }
+
+    .small.ghost {
+        font-size: 12px;
+        padding: 6px 8px;
+        background: transparent;
+        border: 1px solid rgba(0, 0, 0, 0.06);
+        border-radius: 8px;
+        cursor: pointer;
+    }
+
+    .video-wrap img {
+        border-radius: 8px;
+        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+    }
+
+    @media (max-width:900px) {
+        .video-and-ui {
+            flex-direction: column;
+            align-items: center
+        }
+
+        .live-info {
+            position: static;
+            width: 100%
+        }
+    }
+</style>
+
+<script>
+    /*
+     Unified client UI for workout page.
+     - Polls /video_info and displays server-side rep_count (server does the counting).
+     - Switches exercises client-side by updating image src and query param.
+     - Save/reset reps to localStorage per-exercise.
+    */
+
+    const FEED_IMG = document.getElementById('liveFeed');
+    const EXER_LINKS = document.querySelectorAll('.exercise-links a.pill');
+    const liveBox = document.getElementById('liveInfoBox');
+    const liveAngleEl = document.getElementById('liveAngle');
+    const liveRepsEl = document.getElementById('liveReps');
+    const liveStatusEl = document.getElementById('liveStatus');
+    const liveSugEl = document.getElementById('liveSuggestion');
+    const recentEl = document.getElementById('recentReps');
+    const liveExerciseLabel = document.getElementById('liveExerciseLabel');
+
+    const closeBtn = document.getElementById('closeInfo');
+    const pinBtn = document.getElementById('pinInfo');
+    const resetBtn = document.getElementById('resetReps');
+    const saveBtn = document.getElementById('saveReps');
+
+    let pinned = false;
+    pinBtn.addEventListener('click', () => {
+        pinned = !pinned;
+        pinBtn.setAttribute('aria-pressed', String(pinned));
+        pinBtn.style.opacity = pinned ? 0.85 : 1;
+    });
+
+    closeBtn.addEventListener('click', () => {
+        liveBox.style.display = 'none';
+        if (pinned) liveBox.style.display = 'block';
+    });
+
+    // localStorage keys & helpers
+    const LS_SETS_KEY = 'ai_local_sets_v1'; // array of saved sets {dt, exercise, reps}
+    function loadSets() {
+        try { return JSON.parse(localStorage.getItem(LS_SETS_KEY) || '[]'); } catch (e) { return []; }
+    }
+    function saveSets(arr) { localStorage.setItem(LS_SETS_KEY, JSON.stringify(arr)); }
+
+    // current "state"
+    const state = {
+        exercise: (new URLSearchParams(window.location.search)).get('exercise') || "{{ request.args.get('exercise','squat') }}",
+        lastRepTs: null
+    };
+
+    // set active pill UI
+    function setActivePill(ex) {
+        EXER_LINKS.forEach(a => {
+            if (a.dataset.ex === ex) a.classList.add('active');
+            else a.classList.remove('active');
+        });
+    }
+
+    // update feed src (avoid caching)
+    function updateFeedSrc(ex) {
+        const url = "{{ url_for('video_feed') }}?exercise=" + encodeURIComponent(ex) + "&_ts=" + Date.now();
+        FEED_IMG.src = url;
+    }
+
+    // handle clicking exercise links (single-page-ish)
+    EXER_LINKS.forEach(a => {
+        a.addEventListener('click', (ev) => {
+            ev.preventDefault();
+            const ex = a.dataset.ex;
+            if (!ex) return;
+            // update URL (without reload)
+            const newUrl = new URL(window.location.href);
+            newUrl.searchParams.set('exercise', ex);
+            window.history.pushState({}, '', newUrl);
+            state.exercise = ex;
+            liveExerciseLabel.textContent = ex.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+            setActivePill(ex);
+            updateFeedSrc(ex);
+            // reset UI counters (client-side)
+            liveAngleEl.textContent = '—';
+            liveStatusEl.textContent = '—';
+            liveSugEl.textContent = 'No suggestions yet.';
+            liveRepsEl.textContent = '0';
+            recentEl.textContent = 'Recent: —';
+        });
+    });
+
+    // initial active pill
+    setActivePill(state.exercise);
+
+    // poll /video_info
+    const POLL_INTERVAL = 250; // ms
+    async function pollVideoInfo() {
+        try {
+            const res = await fetch("{{ url_for('video_info') }}", { cache: 'no-store' });
+            if (!res.ok) throw new Error('network');
+            const info = await res.json();
+            if (!info || info.status === 'no_data') {
+                if (!pinned) liveBox.style.display = 'block';
+                liveAngleEl.textContent = '—';
+                liveRepsEl.textContent = '0';
+                liveStatusEl.textContent = 'No pose';
+                liveSugEl.textContent = '';
+                recentEl.textContent = 'Recent: —';
+            } else {
+                // only update if info.exercise matches current (or update anyway)
+                // display angle (prefer knee/elbow/hip/angle)
+                const angle = info.knee_angle ?? info.elbow_angle ?? info.hip_angle ?? info.angle ?? null;
+                liveAngleEl.textContent = angle ? Math.round(angle) + '°' : '—';
+                liveRepsEl.textContent = (info.rep_count !== undefined) ? String(info.rep_count) : '0';
+                liveStatusEl.textContent = info.status ?? info.posture ?? '—';
+
+                // suggestions
+                let sug = '';
+                if (Array.isArray(info.suggestions) && info.suggestions.length) sug = info.suggestions[0];
+                else if (info.suggestions) sug = String(info.suggestions);
+                else if (info.suggestion) sug = info.suggestion;
+                liveSugEl.textContent = sug || 'No suggestions yet.';
+
+                // recent rep timestamp
+                if (info.last_rep_ts) {
+                    try {
+                        // some code stores epoch seconds, others may pass ms; attempt both
+                        let ts = Number(info.last_rep_ts);
+                        if (ts > 1e12) ts = Math.floor(ts / 1000); // if ms -> sec
+                        const dt = new Date(ts * 1000);
+                        recentEl.textContent = 'Recent: ' + dt.toLocaleTimeString();
+                    } catch (e) { recentEl.textContent = 'Recent: —'; }
+                }
+
+                // ensure box visible
+                if (liveBox.style.display === 'none' && !pinned) liveBox.style.display = 'block';
+            }
+        } catch (e) {
+            // network or server error
+            // keep UI but show connection message
+            liveStatusEl.textContent = 'Connection error';
+        } finally {
+            setTimeout(pollVideoInfo, POLL_INTERVAL);
+        }
+    }
+    setTimeout(pollVideoInfo, 120);
+
+    // Save / Reset actions (store saved sets per-exercise locally)
+    resetBtn.addEventListener('click', () => {
+        // Ask server to reset? For now reset client UI only; server counters remain authoritative.
+        liveRepsEl.textContent = '0';
+        recentEl.textContent = 'Recent: —';
+    });
+
+    saveBtn.addEventListener('click', () => {
+        const sets = loadSets();
+        const ex = state.exercise || (new URLSearchParams(window.location.search)).get('exercise') || 'squat';
+        const reps = Number(liveRepsEl.textContent) || 0;
+        const entry = { dt: new Date().toISOString(), exercise: ex, reps: reps };
+        sets.push(entry);
+        saveSets(sets);
+        alert('Set saved locally.');
+    });
+
+    // allow keyboard shortcut to toggle pin (P)
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'p' || e.key === 'P') {
+            pinned = !pinned;
+            pinBtn.setAttribute('aria-pressed', String(pinned));
+        }
+    });
+
+    // Start: ensure feed URL matches query param (in case page loaded with ?exercise=)
+    (function init() {
+        const qp = new URLSearchParams(window.location.search);
+        const ex = qp.get('exercise') || state.exercise;
+        if (ex) {
+            state.exercise = ex;
+            liveExerciseLabel.textContent = ex.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+            setActivePill(ex);
+            updateFeedSrc(ex);
+        }
+    })();
+</script>
+{% endblock %}

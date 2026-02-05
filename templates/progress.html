@@ -1,0 +1,558 @@
+{% extends "base.html" %}
+{% block title %}Progress — AI Trainer{% endblock %}
+{% block body_class %}progress{% endblock %}
+
+{% block content %}
+<div class="progress-header">
+    <div>
+        <h2>Progress</h2>
+        <p class="muted">Personal dashboard · local-only (stored in your browser)</p>
+    </div>
+
+    <div class="progress-actions">
+        <button id="btnExport" class="btn">Export</button>
+        <input id="importFile" type="file" accept="application/json" style="display:none;">
+        <button id="btnImport" class="btn ghost">Import</button>
+        <button id="clearAll" class="btn ghost">Clear</button>
+    </div>
+</div>
+
+<div class="profile-and-stats">
+    <aside class="card profile-card">
+        <div class="profile-top">
+            <div id="avatar-display" class="avatar">🏋️</div>
+            <div>
+                <h3 id="user-name">Guest</h3>
+                <p class="muted" id="user-meta">Local profile</p>
+            </div>
+        </div>
+
+        <div class="profile-stats">
+            <div class="stat">
+                <div class="stat-value" id="streak">0</div>
+                <div class="stat-label">Current streak (days)</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="longest">0</div>
+                <div class="stat-label">Longest streak</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="total-sets">0</div>
+                <div class="stat-label">Saved sets</div>
+            </div>
+        </div>
+
+        <div style="margin-top:10px; display:flex; gap:8px;">
+            <button id="editProfileBtn" class="btn">Edit profile</button>
+            <button id="addManualBtn" class="btn ghost">Add set</button>
+        </div>
+    </aside>
+
+    <section class="card heatmap-card">
+        <h4 style="margin:0 0 8px 0;">30-day Activity</h4>
+        <div id="heatmapHint" class="muted small" style="margin-bottom:8px;">Colors show number of sets on that day.
+        </div>
+        <div id="heatmap" class="heatmap-grid" aria-hidden="false"></div>
+        <div class="heatmap-legend" style="margin-top:10px;">
+            <span class="muted small">Less</span>
+            <div class="legend-swatch sw0"></div>
+            <div class="legend-swatch sw1"></div>
+            <div class="legend-swatch sw2"></div>
+            <div class="legend-swatch sw3"></div>
+            <span class="muted small">More</span>
+        </div>
+    </section>
+</div>
+
+<div class="history-and-list" style="display:grid; grid-template-columns: 1fr 360px; gap:18px; margin-top:18px;">
+    <section class="card">
+        <h4 style="margin-top:0;">Workout History (recent)</h4>
+        <div id="historyChartWrap" style="margin-top:12px;">
+            <canvas id="historyChart" width="800" height="200" style="max-width:100%;"></canvas>
+        </div>
+
+        <h4 style="margin-top:18px;">All saved sets</h4>
+        <div id="allSets" style="margin-top:8px; max-height:300px; overflow:auto;"></div>
+    </section>
+
+    <aside class="card">
+        <h4 style="margin-top:0;">Recent sets</h4>
+        <div id="recentList" style="margin-top:8px; max-height:420px; overflow:auto;"></div>
+
+        <div style="margin-top:12px;">
+            <small class="muted">Tip: Save sets on the workout page (Save button) or add manually here.</small>
+        </div>
+    </aside>
+</div>
+
+<!-- Profile Edit Modal -->
+<div id="profileModal" class="modal" style="display:none;">
+    <div class="modal-content card" style="max-width:420px;">
+        <h3>Edit profile</h3>
+        <form id="profileForm">
+            <input id="nameInput" placeholder="Your name" style="width:100%; padding:8px; margin-bottom:8px;">
+            <input id="avatarInput" type="file" accept="image/*" style="margin-bottom:8px;">
+            <div style="display:flex; gap:8px;">
+                <button type="submit" class="btn">Save</button>
+                <button type="button" id="closeModal" class="btn ghost">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Manual Set Modal -->
+<div id="manualModal" class="modal" style="display:none;">
+    <div class="modal-content card" style="max-width:420px;">
+        <h3>Add set (manual)</h3>
+        <form id="manualForm">
+            <label>Exercise</label>
+            <select id="manualExercise" style="width:100%; padding:8px; margin-bottom:8px;">
+                <option value="squat">Squat</option>
+                <option value="push_up">Push-up</option>
+                <option value="bench_press">Bench press</option>
+                <option value="dips">Dips</option>
+                <option value="pull_up">Pull-up</option>
+                <option value="crunches">Crunches</option>
+                <option value="jumping_jacks">Jumping jacks</option>
+                <option value="tricep_extension">Tricep extension</option>
+            </select>
+
+            <label>Reps</label>
+            <input id="manualReps" type="number" min="1" value="10" style="width:100%; padding:8px; margin-bottom:8px;">
+
+            <label>Date & time</label>
+            <input id="manualDt" type="datetime-local" style="width:100%; padding:8px; margin-bottom:12px;">
+            <div style="display:flex; gap:8px;">
+                <button class="btn" type="submit">Add</button>
+                <button id="manualCancel" type="button" class="btn ghost">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+    /* Progress page client logic
+       - uses localStorage keys:
+         * ai_trainer_logs : array of { dt, exercise, reps, weight? }
+         * ai_trainer_visits : array of ISO dates for daily visits
+         * ai_trainer_profile : { name, avatar }
+       - draws heatmap for last 30 days and a small bar chart for last 14 days
+    */
+
+    const LS_LOGS = "ai_trainer_logs";
+    const LS_VISITS = "ai_trainer_visits";
+    const LS_PROFILE = "ai_trainer_profile";
+
+    function loadJSON(key, fallback) {
+        try { return JSON.parse(localStorage.getItem(key) || JSON.stringify(fallback)); }
+        catch (e) { console.error("parse error", e); return fallback; }
+    }
+    function saveJSON(key, val) { localStorage.setItem(key, JSON.stringify(val)); }
+
+    // visits & streak helpers
+    function recordVisit() {
+        const visits = loadJSON(LS_VISITS, []);
+        const today = new Date().toISOString().split('T')[0];
+        if (!visits.includes(today)) {
+            visits.push(today);
+            saveJSON(LS_VISITS, visits.slice(-500));
+        }
+    }
+    function computeStreaks() {
+        const visits = new Set(loadJSON(LS_VISITS, []));
+        if (!visits.size) return { current: 0, longest: 0 };
+        // compute current streak
+        let current = 0, longest = 0;
+        let d = new Date();
+        // longest: scan backwards 365 days
+        for (let i = 0; i < 365; i++) {
+            const iso = new Date(Date.now() - i * 86400000).toISOString().split('T')[0];
+            if (visits.has(iso)) {
+                if (i === 0) { /* nothing */ }
+            }
+        }
+        // compute current
+        d = new Date();
+        while (true) {
+            const iso = d.toISOString().split('T')[0];
+            if (visits.has(iso)) { current++; d.setDate(d.getDate() - 1); }
+            else break;
+        }
+        // compute longest by scanning last 365 days and counting contiguous runs
+        let run = 0;
+        for (let i = 0; i < 365; i++) {
+            const iso = new Date(Date.now() - (364 - i) * 86400000).toISOString().split('T')[0]; // forward scan
+            if (visits.has(iso)) { run++; longest = Math.max(longest, run); }
+            else run = 0;
+        }
+        return { current, longest };
+    }
+
+    // load & UI elements
+    const avatarDisplay = document.getElementById('avatar-display');
+    const userNameEl = document.getElementById('user-name');
+    const streakEl = document.getElementById('streak');
+    const longestEl = document.getElementById('longest');
+    const totalSetsEl = document.getElementById('total-sets');
+    const heatmapEl = document.getElementById('heatmap');
+    const historyChartCtx = document.getElementById('historyChart').getContext('2d');
+    const allSetsEl = document.getElementById('allSets');
+    const recentListEl = document.getElementById('recentList');
+
+    function refreshProfileUI() {
+        const p = loadJSON(LS_PROFILE, {});
+        userNameEl.textContent = p.name || 'Guest';
+        if (p.avatar) avatarDisplay.innerHTML = `<img src="${p.avatar}" style="width:64px;height:64px;border-radius:10px;object-fit:cover;">`;
+        else avatarDisplay.textContent = '🏋️';
+    }
+
+    function loadLogs() { return loadJSON(LS_LOGS, []); }
+    function saveLogs(l) { saveJSON(LS_LOGS, l); }
+
+    // build heatmap for last 30 days
+    function buildHeatmap() {
+        const logs = loadLogs();
+        const counts = {};
+        for (let i = 29; i >= 0; i--) {
+            const d = new Date(); d.setDate(d.getDate() - i);
+            const iso = d.toISOString().split('T')[0];
+            counts[iso] = 0;
+        }
+        logs.forEach(s => {
+            const day = (s.dt || s.ts || '').split('T')[0];
+            if (day && counts.hasOwnProperty(day)) counts[day] += 1;
+        });
+        // clear
+        heatmapEl.innerHTML = '';
+        // compute max for coloring
+        const max = Math.max(...Object.values(counts), 1);
+        Object.keys(counts).forEach(date => {
+            const v = counts[date];
+            const cell = document.createElement('div');
+            cell.className = 'heatcell';
+            let tier = 0;
+            if (v === 0) tier = 0;
+            else if (v < Math.max(1, Math.ceil(max * 0.25))) tier = 1;
+            else if (v < Math.max(2, Math.ceil(max * 0.6))) tier = 2;
+            else tier = 3;
+            cell.classList.add('sw' + tier);
+            cell.title = `${date}: ${v} set${v !== 1 ? 's' : ''}`;
+            cell.dataset.date = date;
+            cell.dataset.count = v;
+            heatmapEl.appendChild(cell);
+        });
+    }
+
+    // small bar chart of last 14 days (sets per day)
+    let smallChart = null;
+    function buildHistoryChart() {
+        const logs = loadLogs();
+        const counts = {};
+        for (let i = 13; i >= 0; i--) {
+            const d = new Date(); d.setDate(d.getDate() - i);
+            const iso = d.toISOString().split('T')[0];
+            counts[iso] = 0;
+        }
+        logs.forEach(s => {
+            const day = (s.dt || s.ts || '').split('T')[0];
+            if (day && counts.hasOwnProperty(day)) counts[day] += 1;
+        });
+        const labels = Object.keys(counts);
+        const data = labels.map(d => counts[d]);
+        if (smallChart) smallChart.destroy();
+        smallChart = new Chart(historyChartCtx, {
+            type: 'bar',
+            data: { labels, datasets: [{ label: 'Sets/day', data, backgroundColor: labels.map(() => 'rgba(0,123,255,0.75)') }] },
+            options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, precision: 0 } } }
+        });
+    }
+
+    // rebuild recent lists and stats
+    function rebuildListsAndStats() {
+        const logs = loadLogs();
+        totalSetsEl.textContent = logs.length;
+        // recent
+        const recent = logs.slice(-20).reverse();
+        recentListEl.innerHTML = '';
+        if (!recent.length) recentListEl.innerHTML = '<div class="muted small">No saved sets</div>';
+        recent.forEach(s => {
+            const el = document.createElement('div');
+            el.className = 'recent-row';
+            el.innerHTML = `<strong>${(s.exercise || '—').replace('_', ' ')}</strong> • ${s.reps || 0} reps <span class="muted small" style="float:right;">${new Date(s.dt || s.ts || Date.now()).toLocaleString()}</span>`;
+            recentListEl.appendChild(el);
+        });
+
+        // all sets list
+        allSetsEl.innerHTML = '';
+        const all = logs.slice().reverse();
+        if (!all.length) allSetsEl.innerHTML = '<div class="muted small">No saved sets</div>';
+        all.forEach(s => {
+            const row = document.createElement('div');
+            row.className = 'all-set-row';
+            row.innerHTML = `<div style="display:flex;justify-content:space-between;gap:8px;"><div><strong>${(s.exercise || '—').replace('_', ' ')}</strong><div class="muted small">${s.reps || 0} reps</div></div><div class="muted small">${new Date(s.dt || s.ts || Date.now()).toLocaleString()}</div></div>`;
+            allSetsEl.appendChild(row);
+        });
+
+        // visits/streaks
+        const visits = loadJSON(LS_VISITS, []);
+        const str = computeStreaks();
+        streakEl.textContent = str.current;
+        longestEl.textContent = str.longest;
+    }
+
+    // UI: export/import
+    document.getElementById('btnExport').addEventListener('click', () => {
+        const payload = { logs: loadLogs(), visits: loadJSON(LS_VISITS, []), profile: loadJSON(LS_PROFILE, {}) };
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = 'ai_trainer_export.json'; a.click();
+        URL.revokeObjectURL(url);
+    });
+    document.getElementById('btnImport').addEventListener('click', () => document.getElementById('importFile').click());
+    document.getElementById('importFile').addEventListener('change', (ev) => {
+        const f = ev.target.files[0];
+        if (!f) return;
+        const r = new FileReader();
+        r.onload = () => {
+            try {
+                const p = JSON.parse(r.result);
+                if (p.logs) saveJSON(LS_LOGS, p.logs);
+                if (p.visits) saveJSON(LS_VISITS, p.visits);
+                if (p.profile) saveJSON(LS_PROFILE, p.profile);
+                rebuildAll();
+                alert('Import OK');
+            } catch (e) { alert('Import failed: invalid JSON'); }
+        };
+        r.readAsText(f);
+    });
+
+    // clear local
+    document.getElementById('clearAll').addEventListener('click', () => {
+        if (!confirm('Clear all local progress data?')) return;
+        localStorage.removeItem(LS_LOGS);
+        localStorage.removeItem(LS_VISITS);
+        localStorage.removeItem(LS_PROFILE);
+        rebuildAll();
+    });
+
+    // profile modal
+    const profileModal = document.getElementById('profileModal');
+    document.getElementById('editProfileBtn').addEventListener('click', () => {
+        const p = loadJSON(LS_PROFILE, {});
+        document.getElementById('nameInput').value = p.name || '';
+        profileModal.style.display = 'block';
+    });
+    document.getElementById('closeModal').addEventListener('click', () => profileModal.style.display = 'none');
+    document.getElementById('profileForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const p = loadJSON(LS_PROFILE, {});
+        p.name = document.getElementById('nameInput').value || 'Guest';
+        const f = document.getElementById('avatarInput').files[0];
+        if (f) {
+            const fr = new FileReader();
+            fr.onload = () => { p.avatar = fr.result; saveJSON(LS_PROFILE, p); profileModal.style.display = 'none'; rebuildAll(); };
+            fr.readAsDataURL(f);
+        } else { saveJSON(LS_PROFILE, p); profileModal.style.display = 'none'; rebuildAll(); }
+    });
+
+    // manual add set modal
+    const manualModal = document.getElementById('manualModal');
+    document.getElementById('addManualBtn').addEventListener('click', () => {
+        // set default datetime to now
+        const now = new Date(); now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+        document.getElementById('manualDt').value = now.toISOString().slice(0, 16);
+        manualModal.style.display = 'block';
+    });
+    document.getElementById('manualCancel').addEventListener('click', () => manualModal.style.display = 'none');
+    document.getElementById('manualForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const ex = document.getElementById('manualExercise').value;
+        const reps = parseInt(document.getElementById('manualReps').value) || 0;
+        const dtv = document.getElementById('manualDt').value;
+        const dt = dtv ? new Date(dtv).toISOString() : new Date().toISOString();
+        const logs = loadLogs();
+        logs.push({ dt, exercise: ex, reps, ts: Date.now() });
+        saveLogs(logs);
+        manualModal.style.display = 'none';
+        rebuildAll();
+    });
+
+    // rebuild all UI pieces
+    function rebuildAll() {
+        try {
+            recordVisit();
+            refreshProfileUI();
+            buildHeatmap();
+            buildHistoryChart();
+            rebuildListsAndStats();
+        } catch (e) {
+            console.error('rebuildAll error', e);
+        }
+    }
+
+    // init
+    rebuildAll();
+</script>
+
+<style>
+    /* Progress page styles */
+    .progress-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 14px;
+    }
+
+    .progress-actions {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+    }
+
+    .profile-and-stats {
+        display: flex;
+        gap: 18px;
+        align-items: flex-start;
+        flex-wrap: wrap;
+    }
+
+    .profile-card {
+        width: 300px;
+    }
+
+    .profile-top {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+    }
+
+    .avatar {
+        width: 64px;
+        height: 64px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 10px;
+        background: linear-gradient(180deg, #fff, #f3f3f3);
+        font-size: 28px;
+    }
+
+    .profile-stats {
+        display: flex;
+        gap: 12px;
+        margin-top: 12px;
+        justify-content: space-between;
+    }
+
+    .stat {
+        text-align: center;
+    }
+
+    .stat-value {
+        font-size: 20px;
+        font-weight: 700;
+    }
+
+    .stat-label {
+        font-size: 13px;
+        color: rgba(0, 0, 0, 0.6);
+    }
+
+    .heatmap-card {
+        flex: 1;
+        min-width: 320px;
+    }
+
+    .heatmap-grid {
+        display: grid;
+        grid-template-columns: repeat(10, 1fr);
+        gap: 6px;
+    }
+
+    .heatcell {
+        width: 22px;
+        height: 22px;
+        border-radius: 4px;
+        border: 1px solid rgba(0, 0, 0, 0.06);
+    }
+
+    .legend-swatch {
+        width: 22px;
+        height: 22px;
+        display: inline-block;
+        margin-left: 6px;
+        border-radius: 4px;
+        border: 1px solid rgba(0, 0, 0, 0.06);
+        vertical-align: middle;
+    }
+
+    .sw0 {
+        background: #f6f8fa;
+    }
+
+    .sw1 {
+        background: #cce5ff;
+    }
+
+    .sw2 {
+        background: #66b3ff;
+    }
+
+    .sw3 {
+        background: #0066cc;
+        color: #fff;
+    }
+
+    /* lists */
+    .recent-row,
+    .all-set-row {
+        padding: 8px 0;
+        border-bottom: 1px dashed rgba(0, 0, 0, 0.04);
+    }
+
+    .recent-row:last-child,
+    .all-set-row:last-child {
+        border-bottom: none;
+    }
+
+    /* modal */
+    .modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0, 0, 0, 0.45);
+        z-index: 1200;
+    }
+
+    .modal-content {
+        padding: 18px;
+        width: 100%;
+        max-width: 520px;
+        border-radius: 10px;
+    }
+
+    /* responsive */
+    @media (max-width:900px) {
+        .profile-and-stats {
+            flex-direction: column;
+        }
+
+        .history-and-list {
+            grid-template-columns: 1fr;
+        }
+
+        .heatmap-grid {
+            grid-template-columns: repeat(7, 1fr);
+        }
+    }
+</style>
+{% endblock %}
