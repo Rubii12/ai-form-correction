@@ -4,21 +4,20 @@ import time
 from utils import angle_calculations
 import math
 
-_STATE = {"smoothed": None, "in_down": False, "rep_count":0, "last_rep_ts":0.0, "last_val": None, "last_ts": None, "tick":0}
+_STATE = {"smoothed": None, "in_down": False, "rep_count": 0, "last_rep_ts": 0.0, "last_val": None, "last_ts": None, "tick": 0}
 
-# pseudo-angle thresholds
-DOWN_THR = 80   # arms down
-UP_THR = 140    # arms overhead
+DOWN_THR = 80
+UP_THR = 140
 COOLDOWN_MS = 300
 ALPHA = 0.30
 MIN_VEL = 8.0
 
-def _dist(a,b):
-    return math.hypot(a[0]-b[0], a[1]-b[1])
+def _dist(a, b):
+    return math.hypot(a[0] - b[0], a[1] - b[1])
 
 def process_frame(frame, pose_landmarks, mp_pose):
     global _STATE
-    h,w = frame.shape[:2]
+    h, w = frame.shape[:2]
     lm = pose_landmarks.landmark
 
     try:
@@ -29,15 +28,15 @@ def process_frame(frame, pose_landmarks, mp_pose):
     except Exception:
         return frame, {"status": "landmarks_missing"}
 
-    lsh = (int(l_sh.x*w), int(l_sh.y*h))
-    rsh = (int(r_sh.x*w), int(r_sh.y*h))
-    lwr = (int(l_wr.x*w), int(l_wr.y*h))
-    rwr = (int(r_wr.x*w), int(r_wr.y*h))
+    lsh = (int(l_sh.x * w), int(l_sh.y * h))
+    rsh = (int(r_sh.x * w), int(r_sh.y * h))
+    lwr = (int(l_wr.x * w), int(l_wr.y * h))
+    rwr = (int(r_wr.x * w), int(r_wr.y * h))
 
-    cv2.circle(frame, lsh, 3, (40,200,40), -1)
-    cv2.circle(frame, rsh, 3, (40,200,40), -1)
-    cv2.circle(frame, lwr, 3, (40,200,40), -1)
-    cv2.circle(frame, rwr, 3, (40,200,40), -1)
+    cv2.circle(frame, lsh, 3, (40, 200, 40), -1)
+    cv2.circle(frame, rsh, 3, (40, 200, 40), -1)
+    cv2.circle(frame, lwr, 3, (40, 200, 40), -1)
+    cv2.circle(frame, rwr, 3, (40, 200, 40), -1)
 
     shoulder_dist = _dist(lsh, rsh)
     avg_wrist_y = (lwr[1] + rwr[1]) / 2.0
@@ -51,14 +50,14 @@ def process_frame(frame, pose_landmarks, mp_pose):
     if _STATE["smoothed"] is None:
         _STATE["smoothed"] = angle
     else:
-        _STATE["smoothed"] = ALPHA*angle + (1-ALPHA)*_STATE["smoothed"]
+        _STATE["smoothed"] = ALPHA * angle + (1 - ALPHA) * _STATE["smoothed"]
 
     now = time.time()
     vel = 0.0
     if _STATE["last_val"] is not None and _STATE["last_ts"]:
         dt = now - _STATE["last_ts"]
         if dt > 0:
-            vel = (angle - _STATE["last_val"])/dt
+            vel = (angle - _STATE["last_val"]) / dt
     _STATE["last_val"] = angle
     _STATE["last_ts"] = now
 
@@ -66,7 +65,7 @@ def process_frame(frame, pose_landmarks, mp_pose):
         if _STATE["smoothed"] <= DOWN_THR:
             _STATE["in_down"] = True
     else:
-        cooldown_ok = (now - _STATE["last_rep_ts"])*1000 >= COOLDOWN_MS
+        cooldown_ok = (now - _STATE["last_rep_ts"]) * 1000 >= COOLDOWN_MS
         vel_ok = (MIN_VEL <= 0) or (abs(vel) >= MIN_VEL)
         if _STATE["smoothed"] >= UP_THR and cooldown_ok and vel_ok:
             _STATE["rep_count"] += 1
@@ -74,12 +73,32 @@ def process_frame(frame, pose_landmarks, mp_pose):
             _STATE["last_rep_ts"] = now
 
     status = "arms_down" if aint <= DOWN_THR else ("arms_up" if aint >= UP_THR else "mid")
+
     suggestions = []
+    rep_quality = "good"
+
+    if status == "arms_up":
+        if abs(vel) > 200:
+            suggestions.append("Smooth arc — control arm swing.")
+            rep_quality = "okay"
+        elif not suggestions:
+            suggestions.append("Clap overhead and land softly.")
+    elif status == "arms_down":
+        if abs(vel) > 200:
+            suggestions.append("Land on balls of feet — reduce impact.")
+            rep_quality = "okay"
+        elif not suggestions:
+            suggestions.append("Keep rhythm steady — breathe naturally.")
+    elif status == "mid":
+        if not suggestions:
+            suggestions.append("Full extension overhead for complete rep.")
+
     info = {
         "angle": aint,
         "smoothed_angle": int(round(_STATE["smoothed"])),
         "status": status,
-        "suggestions": suggestions,
+        "suggestions": suggestions[:2],
+        "rep_quality": rep_quality,
         "rep_count": int(_STATE["rep_count"]),
         "last_rep_ts": _STATE["last_rep_ts"]
     }
@@ -89,3 +108,12 @@ def process_frame(frame, pose_landmarks, mp_pose):
         print(f"[jj] sm={_STATE['smoothed']:.1f} a={aint} vel={vel:.1f} in_down={_STATE['in_down']} reps={_STATE['rep_count']}")
 
     return frame, info
+
+def reset():
+    _STATE["smoothed"] = None
+    _STATE["in_down"] = False
+    _STATE["rep_count"] = 0
+    _STATE["last_rep_ts"] = 0.0
+    _STATE["last_val"] = None
+    _STATE["last_ts"] = None
+    _STATE["tick"] = 0

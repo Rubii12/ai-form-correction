@@ -1,30 +1,422 @@
-<!DOCTYPE html>
-<html lang="en">
+{% extends "base.html" %}
+{% block title %}Home — AI Personal Trainer{% endblock %}
+{% block body_class %}home{% endblock %}
 
-<head>
-    <meta charset="UTF-8">
-    <title>AI Personal Trainer</title>
-    {% extends "base.html" %}
-    {% block title %}Home — AI Personal Trainer{% endblock %}
-    {% block body_class %}home{% endblock %}
+{% block content %}
+<style>
+    :root {
+        --red: #e8001d;
+        --bg: #0a0a0a;
+        --surface: #111111;
+        --surface2: #1a1a1a;
+        --border: rgba(255, 255, 255, 0.07);
+        --muted: #666;
+    }
 
-    {% block content %}
-    <h2>Welcome to AI Personal Trainer</h2>
-    <p>Select a section to get started:</p>
-    {% endblock %}
+    body.home {
+        background: #0a0a0a !important;
+        color: #f0f0f0;
+    }
 
+    body.home::before {
+        background: none !important;
+    }
 
-</head>
+    .home-wrap {
+        font-family: 'Inter', sans-serif;
+    }
 
-<body>
-    <h1>Welcome to AI Personal Trainer</h1>
-    <p>Select a section to get started:</p>
+    .glow-orb {
+        position: fixed;
+        width: 600px;
+        height: 600px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(232, 0, 29, 0.10) 0%, transparent 70%);
+        top: 40%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        pointer-events: none;
+        animation: pulse 4s ease-in-out infinite;
+        z-index: 0;
+    }
 
-    <nav>
-        <a href="/workout">Workout</a>
-        <a href="/nutrition">Nutrition</a>
-        <a href="/progress">Progress</a>
-    </nav>
-</body>
+    @keyframes pulse {
 
-</html>
+        0%,
+        100% {
+            opacity: 0.8;
+            transform: translate(-50%, -50%) scale(1);
+        }
+
+        50% {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1.08);
+        }
+    }
+
+    .hero-bg-text {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-family: 'Barlow Condensed', sans-serif;
+        font-weight: 900;
+        font-size: clamp(120px, 22vw, 280px);
+        color: rgba(255, 255, 255, 0.025);
+        white-space: nowrap;
+        pointer-events: none;
+        user-select: none;
+        z-index: 0;
+    }
+
+    .hero {
+        position: relative;
+        z-index: 1;
+        min-height: calc(100vh - 64px);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: 60px 24px;
+    }
+
+    .hero-eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--red);
+        margin-bottom: 20px;
+        padding: 6px 14px;
+        border: 1px solid rgba(232, 0, 29, 0.3);
+        border-radius: 999px;
+        background: rgba(232, 0, 29, 0.08);
+        animation: fadeUp .6s .1s both;
+    }
+
+    .hero-eyebrow::before {
+        content: '';
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--red);
+        animation: blink 1.4s ease-in-out infinite;
+    }
+
+    @keyframes blink {
+
+        0%,
+        100% {
+            opacity: 1
+        }
+
+        50% {
+            opacity: 0.2
+        }
+    }
+
+    .hero h1 {
+        font-family: 'Barlow Condensed', sans-serif;
+        font-weight: 900;
+        font-size: clamp(52px, 10vw, 110px);
+        line-height: 0.92;
+        text-transform: uppercase;
+        color: #fff;
+        margin-bottom: 24px;
+        animation: fadeUp .6s .2s both;
+    }
+
+    .hero h1 em {
+        font-style: italic;
+        color: var(--red);
+        display: block;
+    }
+
+    .hero-sub {
+        font-size: clamp(15px, 2vw, 18px);
+        color: #888;
+        max-width: 460px;
+        margin: 0 auto 48px;
+        line-height: 1.6;
+        animation: fadeUp .6s .35s both;
+    }
+
+    .cta-group {
+        display: flex;
+        gap: 12px;
+        justify-content: center;
+        flex-wrap: wrap;
+        margin-bottom: 64px;
+        animation: fadeUp .6s .45s both;
+    }
+
+    .btn-primary {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        background: var(--red);
+        color: #fff;
+        font-family: 'Barlow Condensed', sans-serif;
+        font-weight: 700;
+        font-size: 17px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        padding: 14px 32px;
+        border-radius: 8px;
+        text-decoration: none;
+        box-shadow: 0 0 32px rgba(232, 0, 29, 0.35);
+        transition: background .2s, transform .15s, box-shadow .2s;
+    }
+
+    .btn-primary:hover {
+        background: #ff1a34;
+        transform: translateY(-2px);
+        box-shadow: 0 0 48px rgba(232, 0, 29, 0.5);
+    }
+
+    .btn-dark {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        background: transparent;
+        color: #ccc;
+        font-family: 'Barlow Condensed', sans-serif;
+        font-weight: 700;
+        font-size: 17px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        padding: 14px 32px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        text-decoration: none;
+        transition: border-color .2s, color .2s, transform .15s;
+    }
+
+    .btn-dark:hover {
+        border-color: rgba(255, 255, 255, 0.2);
+        color: #fff;
+        transform: translateY(-2px);
+    }
+
+    .stats-strip {
+        display: flex;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        overflow: hidden;
+        background: #111;
+        max-width: 560px;
+        width: 100%;
+        margin: 0 auto 80px;
+        animation: fadeUp .6s .55s both;
+    }
+
+    .stat {
+        flex: 1;
+        padding: 20px 24px;
+        text-align: center;
+        border-right: 1px solid var(--border);
+    }
+
+    .stat:last-child {
+        border-right: none;
+    }
+
+    .stat-val {
+        font-family: 'Barlow Condensed', sans-serif;
+        font-weight: 900;
+        font-size: 34px;
+        color: #fff;
+        line-height: 1;
+        margin-bottom: 4px;
+    }
+
+    .stat-val span {
+        color: var(--red);
+    }
+
+    .stat-label {
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: #555;
+    }
+
+    .features {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1px;
+        background: var(--border);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        overflow: hidden;
+        max-width: 900px;
+        width: 100%;
+        animation: fadeUp .6s .65s both;
+    }
+
+    .feat {
+        background: #111;
+        padding: 36px 28px;
+        text-decoration: none;
+        color: inherit;
+        transition: background .2s;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .feat::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background: var(--red);
+        transform: scaleX(0);
+        transform-origin: left;
+        transition: transform .3s ease;
+    }
+
+    .feat:hover {
+        background: #1a1a1a;
+    }
+
+    .feat:hover::before {
+        transform: scaleX(1);
+    }
+
+    .feat-icon {
+        font-size: 30px;
+        margin-bottom: 14px;
+        display: block;
+    }
+
+    .feat-title {
+        font-family: 'Barlow Condensed', sans-serif;
+        font-weight: 700;
+        font-size: 19px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: #fff;
+        margin-bottom: 8px;
+    }
+
+    .feat-desc {
+        font-size: 13px;
+        color: #555;
+        line-height: 1.6;
+    }
+
+    .feat-arrow {
+        position: absolute;
+        bottom: 20px;
+        right: 20px;
+        font-size: 16px;
+        color: var(--red);
+        opacity: 0;
+        transform: translateX(-6px);
+        transition: opacity .2s, transform .2s;
+    }
+
+    .feat:hover .feat-arrow {
+        opacity: 1;
+        transform: translateX(0);
+    }
+
+    @keyframes fadeUp {
+        from {
+            opacity: 0;
+            transform: translateY(24px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    @media (max-width: 700px) {
+        .features {
+            grid-template-columns: 1fr;
+        }
+
+        .stats-strip {
+            flex-wrap: wrap;
+        }
+
+        .stat {
+            border-right: none;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .stat:last-child {
+            border-bottom: none;
+        }
+    }
+</style>
+
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,700;0,900;1,700&display=swap"
+    rel="stylesheet">
+
+<div class="home-wrap">
+    <div class="glow-orb"></div>
+    <div class="hero-bg-text">TRAIN</div>
+
+    <div class="hero">
+        <div class="hero-eyebrow">AI-Powered Form Correction</div>
+
+        <h1>Push Your <em>Limits</em></h1>
+
+        <p class="hero-sub">
+            Real-time pose tracking, rep counting, and personalised coaching — all from your camera.
+        </p>
+
+        <div class="cta-group">
+            <a class="btn-primary" href="{{ url_for('workout') }}">💪 Start Workout</a>
+            <a class="btn-dark" href="{{ url_for('nutrition') }}">🥗 Nutrition</a>
+            <a class="btn-dark" href="{{ url_for('progress') }}">📈 Progress</a>
+        </div>
+
+        <div class="stats-strip">
+            <div class="stat">
+                <div class="stat-val">8<span>+</span></div>
+                <div class="stat-label">Exercises</div>
+            </div>
+            <div class="stat">
+                <div class="stat-val">Live</div>
+                <div class="stat-label">Rep Counter</div>
+            </div>
+            <div class="stat">
+                <div class="stat-val">AI</div>
+                <div class="stat-label">Form Feedback</div>
+            </div>
+        </div>
+
+        <div class="features">
+            <a class="feat" href="{{ url_for('workout') }}">
+                <span class="feat-icon">🎥</span>
+                <div class="feat-title">Live Tracking</div>
+                <p class="feat-desc">Mediapipe pose detection tracks your joints in real time and counts every rep.</p>
+                <span class="feat-arrow">→</span>
+            </a>
+            <a class="feat" href="{{ url_for('nutrition') }}">
+                <span class="feat-icon">🥗</span>
+                <div class="feat-title">Nutrition</div>
+                <p class="feat-desc">Calculate your TDEE and get a personalised meal plan built around your goals.</p>
+                <span class="feat-arrow">→</span>
+            </a>
+            <a class="feat" href="{{ url_for('progress') }}">
+                <span class="feat-icon">📈</span>
+                <div class="feat-title">Progress</div>
+                <p class="feat-desc">Track sets over time, see personal bests, and export your history as CSV.</p>
+                <span class="feat-arrow">→</span>
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

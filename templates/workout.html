@@ -3,284 +3,625 @@
 {% block body_class %}workout{% endblock %}
 
 {% block content %}
-<h2>Workout</h2>
-<p class="muted">Choose an exercise — the live camera feed and session info appear to the right.</p>
 
-<div class="exercise-links" aria-label="Exercises" role="tablist">
-    <a class="pill" href="?exercise=squat" data-ex="squat">Squat</a>
-    <a class="pill" href="?exercise=push_up" data-ex="push_up">Push-up</a>
-    <a class="pill" href="?exercise=bench_press" data-ex="bench_press">Bench</a>
-    <a class="pill" href="?exercise=dips" data-ex="dips">Dips</a>
-    <a class="pill" href="?exercise=pull_up" data-ex="pull_up">Pull-up</a>
-    <a class="pill" href="?exercise=crunches" data-ex="crunches">Crunches</a>
-    <a class="pill" href="?exercise=jumping_jacks" data-ex="jumping_jacks">Jumping Jacks</a>
-    <a class="pill" href="?exercise=tricep_extension" data-ex="tricep_extension">Tricep Ext.</a>
-</div>
-
-<div class="video-and-ui" style="display:flex;gap:24px;flex-wrap:wrap;justify-content:center;align-items:flex-start;">
-    <!-- Video -->
-    <div class="video-wrap" style="flex:0 1 640px; position:relative;">
-        <img id="liveFeed" src="{{ url_for('video_feed') }}?exercise={{ request.args.get('exercise', 'squat') }}"
-            alt="Live feed" width="640" height="480" style="display:block;">
-    </div>
-
-    <!-- Floating info panel -->
-    <aside id="liveInfoBox" class="card live-info" aria-live="polite" role="region" style="width:320px; max-width:94%;">
-        <div class="live-info-header" style="display:flex;justify-content:space-between;align-items:center;">
-            <strong id="liveExerciseLabel">{{ request.args.get('exercise','squat')|replace('_',' ')|title }}</strong>
-            <div style="display:flex;gap:6px;">
-                <button id="pinInfo" class="small ghost" title="Pin/unpin" aria-pressed="false">📌</button>
-                <button id="closeInfo" class="small ghost" title="Close">✕</button>
-            </div>
-        </div>
-
-        <div class="live-metrics" style="display:flex;gap:8px;margin-top:12px;">
-            <div class="metric" style="flex:1;text-align:center">
-                <div class="metric-label">Angle</div>
-                <div class="metric-value" id="liveAngle">—</div>
-            </div>
-            <div class="metric" style="flex:1;text-align:center">
-                <div class="metric-label">Reps</div>
-                <div class="metric-value" id="liveReps">0</div>
-            </div>
-            <div class="metric" style="flex:1;text-align:center">
-                <div class="metric-label">Status</div>
-                <div class="metric-value small" id="liveStatus">—</div>
-            </div>
-        </div>
-
-        <div class="live-suggestion" id="liveSuggestion" style="margin-top:10px; min-height:44px; color:#444;">
-            No suggestions yet.
-        </div>
-
-        <div style="margin-top:10px; display:flex; gap:8px;">
-            <button id="resetReps" class="btn ghost" style="flex:1;">Reset</button>
-            <button id="saveReps" class="btn" style="flex:1;">Save</button>
-        </div>
-
-        <div class="recent-reps" id="recentReps" style="margin-top:8px; font-size:12px; color:#666;">Recent: —</div>
-    </aside>
-</div>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,700;0,900;1,700&display=swap"
+    rel="stylesheet">
 
 <style>
-    /* small local tweaks if not in style.css */
-    .live-info {
-        padding: 12px;
-        border-radius: 12px;
-        box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
-        background: linear-gradient(180deg, #ffffff, #fffdf6);
-        color: #111;
-        z-index: 1200;
+    :root {
+        --red: #e8001d;
+        --bg: #0a0a0a;
+        --surface: #111;
+        --surface2: #1a1a1a;
+        --border: rgba(255, 255, 255, 0.07);
+        --muted: #555;
     }
 
-    .live-info .metric-value {
+    body.workout {
+        background: #0a0a0a !important;
+        color: #f0f0f0;
+    }
+
+    body.workout::before {
+        background: none !important;
+    }
+
+    .page {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 32px 32px 60px;
+    }
+
+    .page-header {
+        margin-bottom: 24px;
+        animation: fadeUp .5s both;
+    }
+
+    .page-header h2 {
+        font-family: 'Barlow Condensed', sans-serif;
+        font-weight: 900;
+        font-size: clamp(36px, 5vw, 56px);
+        text-transform: uppercase;
+        line-height: 1;
+        color: #fff;
+    }
+
+    .page-header h2 span {
+        color: var(--red);
+    }
+
+    .page-header p {
+        color: var(--muted);
+        font-size: 14px;
+        margin-top: 6px;
+    }
+
+    .ex-pills {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 24px;
+        animation: fadeUp .5s .1s both;
+    }
+
+    .ex-pill {
+        font-family: 'Barlow Condensed', sans-serif;
         font-weight: 700;
-        font-size: 18px;
-    }
-
-    .small.ghost {
-        font-size: 12px;
-        padding: 6px 8px;
-        background: transparent;
-        border: 1px solid rgba(0, 0, 0, 0.06);
-        border-radius: 8px;
+        font-size: 14px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        padding: 8px 18px;
+        border-radius: 6px;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        color: #888;
         cursor: pointer;
+        transition: all .2s;
+        text-decoration: none;
     }
 
-    .video-wrap img {
-        border-radius: 8px;
-        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+    .ex-pill:hover {
+        border-color: rgba(255, 255, 255, 0.15);
+        color: #fff;
     }
 
-    @media (max-width:900px) {
-        .video-and-ui {
-            flex-direction: column;
-            align-items: center
+    .ex-pill.active {
+        background: var(--red);
+        border-color: var(--red);
+        color: #fff;
+        box-shadow: 0 0 18px rgba(232, 0, 29, 0.35);
+    }
+
+    .workout-layout {
+        display: grid;
+        grid-template-columns: 1fr 340px;
+        gap: 20px;
+        align-items: start;
+        animation: fadeUp .5s .2s both;
+    }
+
+    @media (max-width: 960px) {
+        .workout-layout {
+            grid-template-columns: 1fr;
         }
 
-        .live-info {
-            position: static;
-            width: 100%
+        .page {
+            padding: 20px 16px 40px;
+        }
+    }
+
+    .video-panel {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        overflow: hidden;
+        position: relative;
+    }
+
+    .video-panel img {
+        width: 100%;
+        height: auto;
+        display: block;
+    }
+
+    .video-label {
+        position: absolute;
+        top: 14px;
+        left: 14px;
+        background: rgba(0, 0, 0, 0.75);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 5px 12px;
+        font-family: 'Barlow Condensed', sans-serif;
+        font-weight: 700;
+        font-size: 13px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #fff;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+    }
+
+    .rec-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--red);
+        animation: blink 1.2s ease-in-out infinite;
+    }
+
+    @keyframes blink {
+
+        0%,
+        100% {
+            opacity: 1
+        }
+
+        50% {
+            opacity: 0.2
+        }
+    }
+
+    .info-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .metrics-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+    }
+
+    .metric-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 14px 10px;
+        text-align: center;
+    }
+
+    .metric-card .m-label {
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 6px;
+    }
+
+    .metric-card .m-val {
+        font-family: 'Barlow Condensed', sans-serif;
+        font-weight: 900;
+        font-size: 28px;
+        color: #fff;
+        line-height: 1;
+    }
+
+    .metric-card.highlight .m-val {
+        color: var(--red);
+    }
+
+    .suggestion-box {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 16px;
+    }
+
+    .box-header {
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 10px;
+    }
+
+    .s-text {
+        font-size: 14px;
+        color: #ccc;
+        line-height: 1.55;
+        min-height: 40px;
+    }
+
+    .quality-badge {
+        display: none;
+        align-items: center;
+        gap: 6px;
+        margin-top: 10px;
+        padding: 5px 12px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 600;
+        background: rgba(40, 167, 69, 0.15);
+        color: #4caf7d;
+        border: 1px solid rgba(40, 167, 69, 0.2);
+    }
+
+    .quality-badge.okay {
+        background: rgba(255, 193, 7, 0.12);
+        color: #f0b429;
+        border-color: rgba(255, 193, 7, 0.2);
+    }
+
+    .quality-badge.bad {
+        background: rgba(232, 0, 29, 0.12);
+        color: #ff4d63;
+        border-color: rgba(232, 0, 29, 0.2);
+    }
+
+    .action-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+
+    .btn-reset {
+        padding: 12px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: transparent;
+        color: #888;
+        font-family: 'Barlow Condensed', sans-serif;
+        font-weight: 700;
+        font-size: 15px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        cursor: pointer;
+        transition: all .2s;
+    }
+
+    .btn-reset:hover {
+        border-color: rgba(255, 255, 255, 0.18);
+        color: #fff;
+    }
+
+    .btn-save {
+        padding: 12px;
+        border-radius: 8px;
+        border: none;
+        background: var(--red);
+        color: #fff;
+        font-family: 'Barlow Condensed', sans-serif;
+        font-weight: 700;
+        font-size: 15px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        cursor: pointer;
+        transition: all .2s;
+        box-shadow: 0 0 18px rgba(232, 0, 29, 0.25);
+    }
+
+    .btn-save:hover {
+        background: #ff1a34;
+        box-shadow: 0 0 28px rgba(232, 0, 29, 0.45);
+    }
+
+    .recent-row {
+        font-size: 12px;
+        color: var(--muted);
+        text-align: center;
+    }
+
+    .session-log {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 16px;
+    }
+
+    .log-empty {
+        font-size: 13px;
+        color: var(--muted);
+        text-align: center;
+        padding: 12px 0;
+    }
+
+    .log-entry {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 0;
+        border-bottom: 1px solid var(--border);
+        font-size: 13px;
+        color: #888;
+    }
+
+    .log-entry:last-child {
+        border-bottom: none;
+    }
+
+    .log-entry .ex-name {
+        color: #ccc;
+        font-weight: 500;
+    }
+
+    .log-entry .ex-reps {
+        font-family: 'Barlow Condensed', sans-serif;
+        font-weight: 700;
+        font-size: 16px;
+        color: var(--red);
+    }
+
+    .toast {
+        position: fixed;
+        bottom: 28px;
+        left: 50%;
+        transform: translateX(-50%) translateY(20px);
+        background: #1a1a1a;
+        border: 1px solid rgba(40, 167, 69, 0.3);
+        color: #4caf7d;
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 600;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity .25s, transform .25s;
+        z-index: 9999;
+    }
+
+    .toast.show {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+
+    @keyframes fadeUp {
+        from {
+            opacity: 0;
+            transform: translateY(16px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
         }
     }
 </style>
 
-<script>
-    /*
-     Unified client UI for workout page.
-     - Polls /video_info and displays server-side rep_count (server does the counting).
-     - Switches exercises client-side by updating image src and query param.
-     - Save/reset reps to localStorage per-exercise.
-    */
+<div class="page">
 
+    <div class="page-header">
+        <h2>Work<span>out</span></h2>
+        <p>Select an exercise — camera feed and live stats appear below.</p>
+    </div>
+
+    <div class="ex-pills">
+        <a class="ex-pill" href="#" data-ex="squat">Squat</a>
+        <a class="ex-pill" href="#" data-ex="push_up">Push-up</a>
+        <a class="ex-pill" href="#" data-ex="bench_press">Bench</a>
+        <a class="ex-pill" href="#" data-ex="dips">Dips</a>
+        <a class="ex-pill" href="#" data-ex="pull_up">Pull-up</a>
+        <a class="ex-pill" href="#" data-ex="crunches">Crunches</a>
+        <a class="ex-pill" href="#" data-ex="jumping_jacks">Jumping Jacks</a>
+        <a class="ex-pill" href="#" data-ex="tricep_extension">Tricep Ext.</a>
+    </div>
+
+    <div class="workout-layout">
+
+        <div class="video-panel">
+            <img id="liveFeed" src="{{ url_for('video_feed') }}?exercise={{ request.args.get('exercise','squat') }}"
+                alt="Live camera feed">
+            <div class="video-label">
+                <div class="rec-dot"></div>
+                <span id="videoLabel">{{ request.args.get('exercise','squat')|replace('_',' ')|title }}</span>
+            </div>
+        </div>
+
+        <div class="info-panel">
+
+            <div class="metrics-grid">
+                <div class="metric-card highlight">
+                    <div class="m-label">Reps</div>
+                    <div class="m-val" id="liveReps">0</div>
+                </div>
+                <div class="metric-card">
+                    <div class="m-label">Angle</div>
+                    <div class="m-val" id="liveAngle">—</div>
+                </div>
+                <div class="metric-card">
+                    <div class="m-label">Status</div>
+                    <div class="m-val" id="liveStatus" style="font-size:15px; padding-top:5px;">—</div>
+                </div>
+            </div>
+
+            <div class="suggestion-box">
+                <div class="box-header">💬 Coach Feedback</div>
+                <div class="s-text" id="liveSuggestion">No suggestions yet.</div>
+                <div class="quality-badge" id="qualityBadge"></div>
+            </div>
+
+            <div class="action-row">
+                <button class="btn-reset" id="resetReps">↺ Reset</button>
+                <button class="btn-save" id="saveReps">Save Set</button>
+            </div>
+
+            <div class="recent-row" id="recentReps">Last rep: —</div>
+
+            <div class="session-log">
+                <div class="box-header">📋 Session Log</div>
+                <div id="sessionLogBody">
+                    <div class="log-empty">No sets saved yet.</div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<div class="toast" id="toast">✓ Set saved</div>
+
+<script>
     const FEED_IMG = document.getElementById('liveFeed');
-    const EXER_LINKS = document.querySelectorAll('.exercise-links a.pill');
-    const liveBox = document.getElementById('liveInfoBox');
-    const liveAngleEl = document.getElementById('liveAngle');
+    const videoLabel = document.getElementById('videoLabel');
     const liveRepsEl = document.getElementById('liveReps');
+    const liveAngleEl = document.getElementById('liveAngle');
     const liveStatusEl = document.getElementById('liveStatus');
     const liveSugEl = document.getElementById('liveSuggestion');
+    const qualityBadge = document.getElementById('qualityBadge');
     const recentEl = document.getElementById('recentReps');
-    const liveExerciseLabel = document.getElementById('liveExerciseLabel');
-
-    const closeBtn = document.getElementById('closeInfo');
-    const pinBtn = document.getElementById('pinInfo');
     const resetBtn = document.getElementById('resetReps');
     const saveBtn = document.getElementById('saveReps');
+    const logBody = document.getElementById('sessionLogBody');
+    const toast = document.getElementById('toast');
 
-    let pinned = false;
-    pinBtn.addEventListener('click', () => {
-        pinned = !pinned;
-        pinBtn.setAttribute('aria-pressed', String(pinned));
-        pinBtn.style.opacity = pinned ? 0.85 : 1;
-    });
+    const LS_KEY = 'ai_local_sets_v1';
+    function loadSets() { try { return JSON.parse(localStorage.getItem(LS_KEY) || '[]'); } catch (e) { return []; } }
+    function saveSets(a) { localStorage.setItem(LS_KEY, JSON.stringify(a)); }
 
-    closeBtn.addEventListener('click', () => {
-        liveBox.style.display = 'none';
-        if (pinned) liveBox.style.display = 'block';
-    });
+    let sessionSets = [];
 
-    // localStorage keys & helpers
-    const LS_SETS_KEY = 'ai_local_sets_v1'; // array of saved sets {dt, exercise, reps}
-    function loadSets() {
-        try { return JSON.parse(localStorage.getItem(LS_SETS_KEY) || '[]'); } catch (e) { return []; }
+    function renderSessionLog() {
+        if (!sessionSets.length) {
+            logBody.innerHTML = '<div class="log-empty">No sets saved yet.</div>';
+            return;
+        }
+        logBody.innerHTML = [...sessionSets].reverse().map(s => `
+            <div class="log-entry">
+                <span class="ex-name">${fmtEx(s.exercise)}</span>
+                <span class="ex-reps">${s.reps} reps</span>
+            </div>`).join('');
     }
-    function saveSets(arr) { localStorage.setItem(LS_SETS_KEY, JSON.stringify(arr)); }
 
-    // current "state"
+    function fmtEx(ex) {
+        return (ex || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    }
+
+    function showToast(msg) {
+        toast.textContent = msg;
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 2200);
+    }
+
     const state = {
-        exercise: (new URLSearchParams(window.location.search)).get('exercise') || "{{ request.args.get('exercise','squat') }}",
-        lastRepTs: null
+        exercise: (new URLSearchParams(window.location.search)).get('exercise') || 'squat'
     };
 
-    // set active pill UI
+    const pills = document.querySelectorAll('.ex-pill');
+
     function setActivePill(ex) {
-        EXER_LINKS.forEach(a => {
-            if (a.dataset.ex === ex) a.classList.add('active');
-            else a.classList.remove('active');
-        });
+        pills.forEach(p => p.classList.toggle('active', p.dataset.ex === ex));
     }
 
-    // update feed src (avoid caching)
-    function updateFeedSrc(ex) {
-        const url = "{{ url_for('video_feed') }}?exercise=" + encodeURIComponent(ex) + "&_ts=" + Date.now();
-        FEED_IMG.src = url;
+    function switchFeed(ex) {
+        FEED_IMG.src = "{{ url_for('video_feed') }}?exercise=" + encodeURIComponent(ex);
     }
 
-    // handle clicking exercise links (single-page-ish)
-    EXER_LINKS.forEach(a => {
-        a.addEventListener('click', (ev) => {
-            ev.preventDefault();
-            const ex = a.dataset.ex;
-            if (!ex) return;
-            // update URL (without reload)
-            const newUrl = new URL(window.location.href);
-            newUrl.searchParams.set('exercise', ex);
-            window.history.pushState({}, '', newUrl);
+    pills.forEach(pill => {
+        pill.addEventListener('click', e => {
+            e.preventDefault();
+            const ex = pill.dataset.ex;
+            if (!ex || ex === state.exercise) return;
             state.exercise = ex;
-            liveExerciseLabel.textContent = ex.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+            const url = new URL(window.location.href);
+            url.searchParams.set('exercise', ex);
+            window.history.pushState({}, '', url);
             setActivePill(ex);
-            updateFeedSrc(ex);
-            // reset UI counters (client-side)
+            switchFeed(ex);
+            videoLabel.textContent = fmtEx(ex);
+            liveRepsEl.textContent = '0';
             liveAngleEl.textContent = '—';
             liveStatusEl.textContent = '—';
             liveSugEl.textContent = 'No suggestions yet.';
-            liveRepsEl.textContent = '0';
-            recentEl.textContent = 'Recent: —';
+            recentEl.textContent = 'Last rep: —';
+            qualityBadge.style.display = 'none';
+            qualityBadge.className = 'quality-badge';
         });
     });
 
-    // initial active pill
     setActivePill(state.exercise);
 
-    // poll /video_info
-    const POLL_INTERVAL = 250; // ms
-    async function pollVideoInfo() {
+    async function poll() {
         try {
             const res = await fetch("{{ url_for('video_info') }}", { cache: 'no-store' });
-            if (!res.ok) throw new Error('network');
             const info = await res.json();
-            if (!info || info.status === 'no_data') {
-                if (!pinned) liveBox.style.display = 'block';
-                liveAngleEl.textContent = '—';
-                liveRepsEl.textContent = '0';
-                liveStatusEl.textContent = 'No pose';
-                liveSugEl.textContent = '';
-                recentEl.textContent = 'Recent: —';
-            } else {
-                // only update if info.exercise matches current (or update anyway)
-                // display angle (prefer knee/elbow/hip/angle)
-                const angle = info.knee_angle ?? info.elbow_angle ?? info.hip_angle ?? info.angle ?? null;
-                liveAngleEl.textContent = angle ? Math.round(angle) + '°' : '—';
-                liveRepsEl.textContent = (info.rep_count !== undefined) ? String(info.rep_count) : '0';
-                liveStatusEl.textContent = info.status ?? info.posture ?? '—';
 
-                // suggestions
+            if (!info || info.status === 'no_data') {
+                liveStatusEl.textContent = 'No pose';
+                qualityBadge.style.display = 'none';
+            } else {
+                const angle = info.knee_angle ?? info.elbow_angle ?? info.hip_angle ?? info.angle ?? null;
+                liveAngleEl.textContent = angle != null ? Math.round(angle) + '°' : '—';
+                liveRepsEl.textContent = info.rep_count != null ? String(info.rep_count) : '0';
+                liveStatusEl.textContent = info.status ?? '—';
+
                 let sug = '';
-                if (Array.isArray(info.suggestions) && info.suggestions.length) sug = info.suggestions[0];
-                else if (info.suggestions) sug = String(info.suggestions);
-                else if (info.suggestion) sug = info.suggestion;
+                if (Array.isArray(info.suggestions) && info.suggestions.length) {
+                    sug = info.suggestions.join(' · ');
+                } else if (typeof info.suggestions === 'string' && info.suggestions.length) {
+                    try {
+                        const arr = JSON.parse(info.suggestions);
+                        sug = Array.isArray(arr) ? arr.join(' · ') : info.suggestions;
+                    } catch { sug = info.suggestions; }
+                }
                 liveSugEl.textContent = sug || 'No suggestions yet.';
 
-                // recent rep timestamp
-                if (info.last_rep_ts) {
-                    try {
-                        // some code stores epoch seconds, others may pass ms; attempt both
-                        let ts = Number(info.last_rep_ts);
-                        if (ts > 1e12) ts = Math.floor(ts / 1000); // if ms -> sec
-                        const dt = new Date(ts * 1000);
-                        recentEl.textContent = 'Recent: ' + dt.toLocaleTimeString();
-                    } catch (e) { recentEl.textContent = 'Recent: —'; }
+                const q = info.rep_quality;
+                if (q) {
+                    const map = {
+                        'good': ['✓ Good form', ''],
+                        'okay': ['⚠ Okay', 'okay'],
+                        'needs work': ['✗ Needs work', 'bad']
+                    };
+                    const [label, cls] = map[q] || [q, ''];
+                    qualityBadge.textContent = label;
+                    qualityBadge.className = 'quality-badge' + (cls ? ' ' + cls : '');
+                    qualityBadge.style.display = 'inline-flex';
+                } else {
+                    qualityBadge.style.display = 'none';
                 }
 
-                // ensure box visible
-                if (liveBox.style.display === 'none' && !pinned) liveBox.style.display = 'block';
+                if (info.last_rep_ts) {
+                    let ts = Number(info.last_rep_ts);
+                    if (ts > 1e12) ts = Math.floor(ts / 1000);
+                    recentEl.textContent = 'Last rep: ' + new Date(ts * 1000).toLocaleTimeString();
+                }
             }
         } catch (e) {
-            // network or server error
-            // keep UI but show connection message
-            liveStatusEl.textContent = 'Connection error';
+            liveStatusEl.textContent = 'Error';
         } finally {
-            setTimeout(pollVideoInfo, POLL_INTERVAL);
+            setTimeout(poll, 250);
         }
     }
-    setTimeout(pollVideoInfo, 120);
 
-    // Save / Reset actions (store saved sets per-exercise locally)
-    resetBtn.addEventListener('click', () => {
-        // Ask server to reset? For now reset client UI only; server counters remain authoritative.
-        liveRepsEl.textContent = '0';
-        recentEl.textContent = 'Recent: —';
+    setTimeout(poll, 120);
+
+    resetBtn.addEventListener('click', async () => {
+        try {
+            const res = await fetch("{{ url_for('reset_reps') }}", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ exercise: state.exercise })
+            });
+            const data = await res.json();
+            if (data.ok) {
+                liveRepsEl.textContent = '0';
+                liveAngleEl.textContent = '—';
+                liveStatusEl.textContent = '—';
+                liveSugEl.textContent = 'No suggestions yet.';
+                recentEl.textContent = 'Last rep: —';
+                qualityBadge.style.display = 'none';
+            }
+        } catch (e) {
+            liveRepsEl.textContent = '0';
+        }
     });
 
     saveBtn.addEventListener('click', () => {
         const sets = loadSets();
-        const ex = state.exercise || (new URLSearchParams(window.location.search)).get('exercise') || 'squat';
         const reps = Number(liveRepsEl.textContent) || 0;
-        const entry = { dt: new Date().toISOString(), exercise: ex, reps: reps };
+        const entry = { dt: new Date().toISOString(), exercise: state.exercise, reps };
         sets.push(entry);
         saveSets(sets);
-        alert('Set saved locally.');
+        sessionSets.push(entry);
+        renderSessionLog();
+        showToast('✓ Set saved — ' + reps + ' reps');
     });
 
-    // allow keyboard shortcut to toggle pin (P)
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'p' || e.key === 'P') {
-            pinned = !pinned;
-            pinBtn.setAttribute('aria-pressed', String(pinned));
-        }
-    });
-
-    // Start: ensure feed URL matches query param (in case page loaded with ?exercise=)
-    (function init() {
-        const qp = new URLSearchParams(window.location.search);
-        const ex = qp.get('exercise') || state.exercise;
-        if (ex) {
-            state.exercise = ex;
-            liveExerciseLabel.textContent = ex.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-            setActivePill(ex);
-            updateFeedSrc(ex);
-        }
-    })();
+    renderSessionLog();
 </script>
+
 {% endblock %}

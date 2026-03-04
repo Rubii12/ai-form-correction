@@ -3,556 +3,671 @@
 {% block body_class %}progress{% endblock %}
 
 {% block content %}
-<div class="progress-header">
-    <div>
-        <h2>Progress</h2>
-        <p class="muted">Personal dashboard · local-only (stored in your browser)</p>
-    </div>
-
-    <div class="progress-actions">
-        <button id="btnExport" class="btn">Export</button>
-        <input id="importFile" type="file" accept="application/json" style="display:none;">
-        <button id="btnImport" class="btn ghost">Import</button>
-        <button id="clearAll" class="btn ghost">Clear</button>
-    </div>
-</div>
-
-<div class="profile-and-stats">
-    <aside class="card profile-card">
-        <div class="profile-top">
-            <div id="avatar-display" class="avatar">🏋️</div>
-            <div>
-                <h3 id="user-name">Guest</h3>
-                <p class="muted" id="user-meta">Local profile</p>
-            </div>
-        </div>
-
-        <div class="profile-stats">
-            <div class="stat">
-                <div class="stat-value" id="streak">0</div>
-                <div class="stat-label">Current streak (days)</div>
-            </div>
-            <div class="stat">
-                <div class="stat-value" id="longest">0</div>
-                <div class="stat-label">Longest streak</div>
-            </div>
-            <div class="stat">
-                <div class="stat-value" id="total-sets">0</div>
-                <div class="stat-label">Saved sets</div>
-            </div>
-        </div>
-
-        <div style="margin-top:10px; display:flex; gap:8px;">
-            <button id="editProfileBtn" class="btn">Edit profile</button>
-            <button id="addManualBtn" class="btn ghost">Add set</button>
-        </div>
-    </aside>
-
-    <section class="card heatmap-card">
-        <h4 style="margin:0 0 8px 0;">30-day Activity</h4>
-        <div id="heatmapHint" class="muted small" style="margin-bottom:8px;">Colors show number of sets on that day.
-        </div>
-        <div id="heatmap" class="heatmap-grid" aria-hidden="false"></div>
-        <div class="heatmap-legend" style="margin-top:10px;">
-            <span class="muted small">Less</span>
-            <div class="legend-swatch sw0"></div>
-            <div class="legend-swatch sw1"></div>
-            <div class="legend-swatch sw2"></div>
-            <div class="legend-swatch sw3"></div>
-            <span class="muted small">More</span>
-        </div>
-    </section>
-</div>
-
-<div class="history-and-list" style="display:grid; grid-template-columns: 1fr 360px; gap:18px; margin-top:18px;">
-    <section class="card">
-        <h4 style="margin-top:0;">Workout History (recent)</h4>
-        <div id="historyChartWrap" style="margin-top:12px;">
-            <canvas id="historyChart" width="800" height="200" style="max-width:100%;"></canvas>
-        </div>
-
-        <h4 style="margin-top:18px;">All saved sets</h4>
-        <div id="allSets" style="margin-top:8px; max-height:300px; overflow:auto;"></div>
-    </section>
-
-    <aside class="card">
-        <h4 style="margin-top:0;">Recent sets</h4>
-        <div id="recentList" style="margin-top:8px; max-height:420px; overflow:auto;"></div>
-
-        <div style="margin-top:12px;">
-            <small class="muted">Tip: Save sets on the workout page (Save button) or add manually here.</small>
-        </div>
-    </aside>
-</div>
-
-<!-- Profile Edit Modal -->
-<div id="profileModal" class="modal" style="display:none;">
-    <div class="modal-content card" style="max-width:420px;">
-        <h3>Edit profile</h3>
-        <form id="profileForm">
-            <input id="nameInput" placeholder="Your name" style="width:100%; padding:8px; margin-bottom:8px;">
-            <input id="avatarInput" type="file" accept="image/*" style="margin-bottom:8px;">
-            <div style="display:flex; gap:8px;">
-                <button type="submit" class="btn">Save</button>
-                <button type="button" id="closeModal" class="btn ghost">Cancel</button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- Manual Set Modal -->
-<div id="manualModal" class="modal" style="display:none;">
-    <div class="modal-content card" style="max-width:420px;">
-        <h3>Add set (manual)</h3>
-        <form id="manualForm">
-            <label>Exercise</label>
-            <select id="manualExercise" style="width:100%; padding:8px; margin-bottom:8px;">
-                <option value="squat">Squat</option>
-                <option value="push_up">Push-up</option>
-                <option value="bench_press">Bench press</option>
-                <option value="dips">Dips</option>
-                <option value="pull_up">Pull-up</option>
-                <option value="crunches">Crunches</option>
-                <option value="jumping_jacks">Jumping jacks</option>
-                <option value="tricep_extension">Tricep extension</option>
-            </select>
-
-            <label>Reps</label>
-            <input id="manualReps" type="number" min="1" value="10" style="width:100%; padding:8px; margin-bottom:8px;">
-
-            <label>Date & time</label>
-            <input id="manualDt" type="datetime-local" style="width:100%; padding:8px; margin-bottom:12px;">
-            <div style="display:flex; gap:8px;">
-                <button class="btn" type="submit">Add</button>
-                <button id="manualCancel" type="button" class="btn ghost">Cancel</button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- Chart.js -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-<script>
-    /* Progress page client logic
-       - uses localStorage keys:
-         * ai_trainer_logs : array of { dt, exercise, reps, weight? }
-         * ai_trainer_visits : array of ISO dates for daily visits
-         * ai_trainer_profile : { name, avatar }
-       - draws heatmap for last 30 days and a small bar chart for last 14 days
-    */
-
-    const LS_LOGS = "ai_trainer_logs";
-    const LS_VISITS = "ai_trainer_visits";
-    const LS_PROFILE = "ai_trainer_profile";
-
-    function loadJSON(key, fallback) {
-        try { return JSON.parse(localStorage.getItem(key) || JSON.stringify(fallback)); }
-        catch (e) { console.error("parse error", e); return fallback; }
-    }
-    function saveJSON(key, val) { localStorage.setItem(key, JSON.stringify(val)); }
-
-    // visits & streak helpers
-    function recordVisit() {
-        const visits = loadJSON(LS_VISITS, []);
-        const today = new Date().toISOString().split('T')[0];
-        if (!visits.includes(today)) {
-            visits.push(today);
-            saveJSON(LS_VISITS, visits.slice(-500));
-        }
-    }
-    function computeStreaks() {
-        const visits = new Set(loadJSON(LS_VISITS, []));
-        if (!visits.size) return { current: 0, longest: 0 };
-        // compute current streak
-        let current = 0, longest = 0;
-        let d = new Date();
-        // longest: scan backwards 365 days
-        for (let i = 0; i < 365; i++) {
-            const iso = new Date(Date.now() - i * 86400000).toISOString().split('T')[0];
-            if (visits.has(iso)) {
-                if (i === 0) { /* nothing */ }
-            }
-        }
-        // compute current
-        d = new Date();
-        while (true) {
-            const iso = d.toISOString().split('T')[0];
-            if (visits.has(iso)) { current++; d.setDate(d.getDate() - 1); }
-            else break;
-        }
-        // compute longest by scanning last 365 days and counting contiguous runs
-        let run = 0;
-        for (let i = 0; i < 365; i++) {
-            const iso = new Date(Date.now() - (364 - i) * 86400000).toISOString().split('T')[0]; // forward scan
-            if (visits.has(iso)) { run++; longest = Math.max(longest, run); }
-            else run = 0;
-        }
-        return { current, longest };
-    }
-
-    // load & UI elements
-    const avatarDisplay = document.getElementById('avatar-display');
-    const userNameEl = document.getElementById('user-name');
-    const streakEl = document.getElementById('streak');
-    const longestEl = document.getElementById('longest');
-    const totalSetsEl = document.getElementById('total-sets');
-    const heatmapEl = document.getElementById('heatmap');
-    const historyChartCtx = document.getElementById('historyChart').getContext('2d');
-    const allSetsEl = document.getElementById('allSets');
-    const recentListEl = document.getElementById('recentList');
-
-    function refreshProfileUI() {
-        const p = loadJSON(LS_PROFILE, {});
-        userNameEl.textContent = p.name || 'Guest';
-        if (p.avatar) avatarDisplay.innerHTML = `<img src="${p.avatar}" style="width:64px;height:64px;border-radius:10px;object-fit:cover;">`;
-        else avatarDisplay.textContent = '🏋️';
-    }
-
-    function loadLogs() { return loadJSON(LS_LOGS, []); }
-    function saveLogs(l) { saveJSON(LS_LOGS, l); }
-
-    // build heatmap for last 30 days
-    function buildHeatmap() {
-        const logs = loadLogs();
-        const counts = {};
-        for (let i = 29; i >= 0; i--) {
-            const d = new Date(); d.setDate(d.getDate() - i);
-            const iso = d.toISOString().split('T')[0];
-            counts[iso] = 0;
-        }
-        logs.forEach(s => {
-            const day = (s.dt || s.ts || '').split('T')[0];
-            if (day && counts.hasOwnProperty(day)) counts[day] += 1;
-        });
-        // clear
-        heatmapEl.innerHTML = '';
-        // compute max for coloring
-        const max = Math.max(...Object.values(counts), 1);
-        Object.keys(counts).forEach(date => {
-            const v = counts[date];
-            const cell = document.createElement('div');
-            cell.className = 'heatcell';
-            let tier = 0;
-            if (v === 0) tier = 0;
-            else if (v < Math.max(1, Math.ceil(max * 0.25))) tier = 1;
-            else if (v < Math.max(2, Math.ceil(max * 0.6))) tier = 2;
-            else tier = 3;
-            cell.classList.add('sw' + tier);
-            cell.title = `${date}: ${v} set${v !== 1 ? 's' : ''}`;
-            cell.dataset.date = date;
-            cell.dataset.count = v;
-            heatmapEl.appendChild(cell);
-        });
-    }
-
-    // small bar chart of last 14 days (sets per day)
-    let smallChart = null;
-    function buildHistoryChart() {
-        const logs = loadLogs();
-        const counts = {};
-        for (let i = 13; i >= 0; i--) {
-            const d = new Date(); d.setDate(d.getDate() - i);
-            const iso = d.toISOString().split('T')[0];
-            counts[iso] = 0;
-        }
-        logs.forEach(s => {
-            const day = (s.dt || s.ts || '').split('T')[0];
-            if (day && counts.hasOwnProperty(day)) counts[day] += 1;
-        });
-        const labels = Object.keys(counts);
-        const data = labels.map(d => counts[d]);
-        if (smallChart) smallChart.destroy();
-        smallChart = new Chart(historyChartCtx, {
-            type: 'bar',
-            data: { labels, datasets: [{ label: 'Sets/day', data, backgroundColor: labels.map(() => 'rgba(0,123,255,0.75)') }] },
-            options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, precision: 0 } } }
-        });
-    }
-
-    // rebuild recent lists and stats
-    function rebuildListsAndStats() {
-        const logs = loadLogs();
-        totalSetsEl.textContent = logs.length;
-        // recent
-        const recent = logs.slice(-20).reverse();
-        recentListEl.innerHTML = '';
-        if (!recent.length) recentListEl.innerHTML = '<div class="muted small">No saved sets</div>';
-        recent.forEach(s => {
-            const el = document.createElement('div');
-            el.className = 'recent-row';
-            el.innerHTML = `<strong>${(s.exercise || '—').replace('_', ' ')}</strong> • ${s.reps || 0} reps <span class="muted small" style="float:right;">${new Date(s.dt || s.ts || Date.now()).toLocaleString()}</span>`;
-            recentListEl.appendChild(el);
-        });
-
-        // all sets list
-        allSetsEl.innerHTML = '';
-        const all = logs.slice().reverse();
-        if (!all.length) allSetsEl.innerHTML = '<div class="muted small">No saved sets</div>';
-        all.forEach(s => {
-            const row = document.createElement('div');
-            row.className = 'all-set-row';
-            row.innerHTML = `<div style="display:flex;justify-content:space-between;gap:8px;"><div><strong>${(s.exercise || '—').replace('_', ' ')}</strong><div class="muted small">${s.reps || 0} reps</div></div><div class="muted small">${new Date(s.dt || s.ts || Date.now()).toLocaleString()}</div></div>`;
-            allSetsEl.appendChild(row);
-        });
-
-        // visits/streaks
-        const visits = loadJSON(LS_VISITS, []);
-        const str = computeStreaks();
-        streakEl.textContent = str.current;
-        longestEl.textContent = str.longest;
-    }
-
-    // UI: export/import
-    document.getElementById('btnExport').addEventListener('click', () => {
-        const payload = { logs: loadLogs(), visits: loadJSON(LS_VISITS, []), profile: loadJSON(LS_PROFILE, {}) };
-        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a'); a.href = url; a.download = 'ai_trainer_export.json'; a.click();
-        URL.revokeObjectURL(url);
-    });
-    document.getElementById('btnImport').addEventListener('click', () => document.getElementById('importFile').click());
-    document.getElementById('importFile').addEventListener('change', (ev) => {
-        const f = ev.target.files[0];
-        if (!f) return;
-        const r = new FileReader();
-        r.onload = () => {
-            try {
-                const p = JSON.parse(r.result);
-                if (p.logs) saveJSON(LS_LOGS, p.logs);
-                if (p.visits) saveJSON(LS_VISITS, p.visits);
-                if (p.profile) saveJSON(LS_PROFILE, p.profile);
-                rebuildAll();
-                alert('Import OK');
-            } catch (e) { alert('Import failed: invalid JSON'); }
-        };
-        r.readAsText(f);
-    });
-
-    // clear local
-    document.getElementById('clearAll').addEventListener('click', () => {
-        if (!confirm('Clear all local progress data?')) return;
-        localStorage.removeItem(LS_LOGS);
-        localStorage.removeItem(LS_VISITS);
-        localStorage.removeItem(LS_PROFILE);
-        rebuildAll();
-    });
-
-    // profile modal
-    const profileModal = document.getElementById('profileModal');
-    document.getElementById('editProfileBtn').addEventListener('click', () => {
-        const p = loadJSON(LS_PROFILE, {});
-        document.getElementById('nameInput').value = p.name || '';
-        profileModal.style.display = 'block';
-    });
-    document.getElementById('closeModal').addEventListener('click', () => profileModal.style.display = 'none');
-    document.getElementById('profileForm').addEventListener('submit', (e) => {
-        e.preventDefault();
-        const p = loadJSON(LS_PROFILE, {});
-        p.name = document.getElementById('nameInput').value || 'Guest';
-        const f = document.getElementById('avatarInput').files[0];
-        if (f) {
-            const fr = new FileReader();
-            fr.onload = () => { p.avatar = fr.result; saveJSON(LS_PROFILE, p); profileModal.style.display = 'none'; rebuildAll(); };
-            fr.readAsDataURL(f);
-        } else { saveJSON(LS_PROFILE, p); profileModal.style.display = 'none'; rebuildAll(); }
-    });
-
-    // manual add set modal
-    const manualModal = document.getElementById('manualModal');
-    document.getElementById('addManualBtn').addEventListener('click', () => {
-        // set default datetime to now
-        const now = new Date(); now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-        document.getElementById('manualDt').value = now.toISOString().slice(0, 16);
-        manualModal.style.display = 'block';
-    });
-    document.getElementById('manualCancel').addEventListener('click', () => manualModal.style.display = 'none');
-    document.getElementById('manualForm').addEventListener('submit', (e) => {
-        e.preventDefault();
-        const ex = document.getElementById('manualExercise').value;
-        const reps = parseInt(document.getElementById('manualReps').value) || 0;
-        const dtv = document.getElementById('manualDt').value;
-        const dt = dtv ? new Date(dtv).toISOString() : new Date().toISOString();
-        const logs = loadLogs();
-        logs.push({ dt, exercise: ex, reps, ts: Date.now() });
-        saveLogs(logs);
-        manualModal.style.display = 'none';
-        rebuildAll();
-    });
-
-    // rebuild all UI pieces
-    function rebuildAll() {
-        try {
-            recordVisit();
-            refreshProfileUI();
-            buildHeatmap();
-            buildHistoryChart();
-            rebuildListsAndStats();
-        } catch (e) {
-            console.error('rebuildAll error', e);
-        }
-    }
-
-    // init
-    rebuildAll();
-</script>
 
 <style>
-    /* Progress page styles */
-    .progress-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
+    @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&display=swap');
+
+    .progress-wrap {
+        max-width: 960px;
+        margin: 0 auto;
+        text-align: left;
+    }
+
+    .progress-wrap h2 {
+        font-family: 'Syne', sans-serif;
+        font-size: clamp(24px, 4vw, 38px);
+        font-weight: 800;
+        color: #fff;
+        margin-bottom: 4px;
+    }
+
+    .progress-wrap .subtitle {
+        color: rgba(255, 255, 255, 0.75);
+        margin-bottom: 28px;
+        font-size: 15px;
+    }
+
+    .stat-bar {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
         gap: 12px;
+        margin-bottom: 24px;
+    }
+
+    @media (max-width: 700px) {
+        .stat-bar {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+
+    .stat-tile {
+        background: rgba(255, 255, 255, 0.92);
+        border-radius: 14px;
+        padding: 16px 18px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    }
+
+    .stat-tile .label {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: #888;
+        margin-bottom: 6px;
+    }
+
+    .stat-tile .value {
+        font-family: 'DM Mono', monospace;
+        font-size: 28px;
+        font-weight: 500;
+        color: #111;
+        line-height: 1;
+    }
+
+    .stat-tile .sub {
+        font-size: 12px;
+        color: #aaa;
+        margin-top: 4px;
+    }
+
+    .progress-cols {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+        margin-bottom: 20px;
+    }
+
+    @media (max-width: 760px) {
+        .progress-cols {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .p-card {
+        background: rgba(255, 255, 255, 0.93);
+        border-radius: 14px;
+        padding: 20px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.10);
+        color: #111;
+    }
+
+    .p-card h3 {
+        font-family: 'Syne', sans-serif;
+        font-size: 15px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #444;
+        margin: 0 0 14px 0;
+    }
+
+    canvas {
+        width: 100% !important;
+        height: 180px !important;
+        display: block;
+    }
+
+    .filter-pills {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
         margin-bottom: 14px;
+    }
+
+    .filter-pill {
+        padding: 5px 12px;
+        border-radius: 999px;
+        border: 1.5px solid #ddd;
+        background: #f5f5f5;
+        font-size: 12px;
+        cursor: pointer;
+        color: #555;
+        transition: all .15s;
+    }
+
+    .filter-pill.active {
+        background: #007bff;
+        border-color: #007bff;
+        color: #fff;
+    }
+
+    .history-wrap {
+        overflow-x: auto;
+    }
+
+    table.history {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+    }
+
+    table.history th {
+        text-align: left;
+        padding: 8px 10px;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #888;
+        border-bottom: 1px solid #eee;
+    }
+
+    table.history td {
+        padding: 9px 10px;
+        border-bottom: 1px solid #f0f0f0;
+        color: #222;
+    }
+
+    table.history tr:last-child td {
+        border-bottom: none;
+    }
+
+    table.history tr:hover td {
+        background: #fafafa;
+    }
+
+    .badge {
+        display: inline-block;
+        padding: 3px 8px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 600;
+        background: #e8f4fd;
+        color: #0070d8;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 40px 20px;
+        color: #aaa;
+    }
+
+    .empty-state .icon {
+        font-size: 40px;
+        margin-bottom: 10px;
+    }
+
+    .empty-state p {
+        font-size: 14px;
+        margin: 0;
     }
 
     .progress-actions {
         display: flex;
-        gap: 8px;
-        align-items: center;
-    }
-
-    .profile-and-stats {
-        display: flex;
-        gap: 18px;
-        align-items: flex-start;
+        gap: 10px;
+        margin-bottom: 20px;
         flex-wrap: wrap;
     }
 
-    .profile-card {
-        width: 300px;
-    }
-
-    .profile-top {
-        display: flex;
-        gap: 12px;
-        align-items: center;
-    }
-
-    .avatar {
-        width: 64px;
-        height: 64px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
+    .danger-btn {
+        background: transparent;
+        border: 1.5px solid rgba(255, 255, 255, 0.3);
+        color: rgba(255, 255, 255, 0.85);
+        padding: 9px 16px;
         border-radius: 10px;
-        background: linear-gradient(180deg, #fff, #f3f3f3);
-        font-size: 28px;
-    }
-
-    .profile-stats {
-        display: flex;
-        gap: 12px;
-        margin-top: 12px;
-        justify-content: space-between;
-    }
-
-    .stat {
-        text-align: center;
-    }
-
-    .stat-value {
-        font-size: 20px;
-        font-weight: 700;
-    }
-
-    .stat-label {
+        cursor: pointer;
         font-size: 13px;
-        color: rgba(0, 0, 0, 0.6);
+        transition: all .15s;
     }
 
-    .heatmap-card {
-        flex: 1;
-        min-width: 320px;
-    }
-
-    .heatmap-grid {
-        display: grid;
-        grid-template-columns: repeat(10, 1fr);
-        gap: 6px;
-    }
-
-    .heatcell {
-        width: 22px;
-        height: 22px;
-        border-radius: 4px;
-        border: 1px solid rgba(0, 0, 0, 0.06);
-    }
-
-    .legend-swatch {
-        width: 22px;
-        height: 22px;
-        display: inline-block;
-        margin-left: 6px;
-        border-radius: 4px;
-        border: 1px solid rgba(0, 0, 0, 0.06);
-        vertical-align: middle;
-    }
-
-    .sw0 {
-        background: #f6f8fa;
-    }
-
-    .sw1 {
-        background: #cce5ff;
-    }
-
-    .sw2 {
-        background: #66b3ff;
-    }
-
-    .sw3 {
-        background: #0066cc;
+    .danger-btn:hover {
+        background: rgba(220, 53, 69, 0.75);
+        border-color: transparent;
         color: #fff;
     }
 
-    /* lists */
-    .recent-row,
-    .all-set-row {
-        padding: 8px 0;
-        border-bottom: 1px dashed rgba(0, 0, 0, 0.04);
+    .pb-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+        gap: 10px;
     }
 
-    .recent-row:last-child,
-    .all-set-row:last-child {
-        border-bottom: none;
-    }
-
-    /* modal */
-    .modal {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background: rgba(0, 0, 0, 0.45);
-        z-index: 1200;
-    }
-
-    .modal-content {
-        padding: 18px;
-        width: 100%;
-        max-width: 520px;
+    .pb-item {
+        background: linear-gradient(135deg, #f0f8ff, #e8f4fd);
         border-radius: 10px;
+        padding: 12px;
+        text-align: center;
     }
 
-    /* responsive */
-    @media (max-width:900px) {
-        .profile-and-stats {
-            flex-direction: column;
-        }
+    .pb-item .pb-ex {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #888;
+        margin-bottom: 4px;
+    }
 
-        .history-and-list {
-            grid-template-columns: 1fr;
-        }
+    .pb-item .pb-val {
+        font-family: 'DM Mono', monospace;
+        font-size: 22px;
+        font-weight: 500;
+        color: #007bff;
+    }
 
-        .heatmap-grid {
-            grid-template-columns: repeat(7, 1fr);
-        }
+    .pb-item .pb-label {
+        font-size: 10px;
+        color: #aaa;
     }
 </style>
+
+<div class="progress-wrap">
+    <h2>📈 Progress</h2>
+    <p class="subtitle">Your saved workout sets — keep pushing.</p>
+
+    <div class="progress-actions">
+        <button class="danger-btn" onclick="clearAllData()">🗑 Clear all data</button>
+        <button class="danger-btn" onclick="exportCSV()">⬇ Export CSV</button>
+    </div>
+
+    <!-- Stats bar -->
+    <div class="stat-bar">
+        <div class="stat-tile">
+            <div class="label">Total Sets</div>
+            <div class="value" id="statSets">0</div>
+            <div class="sub">saved</div>
+        </div>
+        <div class="stat-tile">
+            <div class="label">Total Reps</div>
+            <div class="value" id="statReps">0</div>
+            <div class="sub">all time</div>
+        </div>
+        <div class="stat-tile">
+            <div class="label">Exercises</div>
+            <div class="value" id="statExercises">0</div>
+            <div class="sub">unique</div>
+        </div>
+        <div class="stat-tile">
+            <div class="label">Last Session</div>
+            <div class="value" id="statLast" style="font-size:16px; padding-top:6px;">—</div>
+            <div class="sub">date</div>
+        </div>
+    </div>
+
+    <!-- Charts row -->
+    <div class="progress-cols">
+        <div class="p-card">
+            <h3>Reps Over Time</h3>
+            <canvas id="chartTimeline"></canvas>
+        </div>
+        <div class="p-card">
+            <h3>Reps by Exercise</h3>
+            <canvas id="chartByExercise"></canvas>
+        </div>
+    </div>
+
+    <!-- Personal bests -->
+    <div class="p-card" style="margin-bottom:16px;">
+        <h3>Personal Bests — max reps in a set</h3>
+        <div class="pb-grid" id="pbGrid">
+            <div class="empty-state">
+                <p>No data yet.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- History table -->
+    <div class="p-card">
+        <h3>Set History</h3>
+        <div class="filter-pills" id="filterPills">
+            <span class="filter-pill active" data-ex="all">All</span>
+        </div>
+        <div class="history-wrap">
+            <div id="historyContainer">
+                <div class="empty-state">
+                    <div class="icon">🏋️</div>
+                    <p>No sets saved yet.<br>Complete a workout and hit <strong>Save</strong> to see your history here.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const LS_KEY = 'ai_local_sets_v1';
+
+    function loadSets() {
+        try { return JSON.parse(localStorage.getItem(LS_KEY) || '[]'); }
+        catch (e) { return []; }
+    }
+
+    function saveSetsData(arr) {
+        localStorage.setItem(LS_KEY, JSON.stringify(arr));
+    }
+
+    function clearAllData() {
+        if (!confirm('Delete all saved workout data? This cannot be undone.')) return;
+        localStorage.removeItem(LS_KEY);
+        location.reload();
+    }
+
+    function exportCSV() {
+        const sets = loadSets();
+        if (!sets.length) { alert('No data to export.'); return; }
+        const rows = [['Date', 'Exercise', 'Reps']];
+        sets.forEach(s => rows.push([s.dt, s.exercise, s.reps]));
+        const csv = rows.map(r => r.join(',')).join('\n');
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'workout_progress.csv';
+        a.click();
+    }
+
+    function fmtEx(ex) {
+        return (ex || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    }
+
+    function fmtDate(iso) {
+        try {
+            const d = new Date(iso);
+            return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+        } catch (e) { return iso; }
+    }
+
+    function fmtDateTime(iso) {
+        try {
+            const d = new Date(iso);
+            return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) +
+                ' ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+        } catch (e) { return iso; }
+    }
+
+    /* ── Line chart ── */
+    function drawLineChart(canvasId, labels, values, color) {
+        const canvas = document.getElementById(canvasId);
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const dpr = window.devicePixelRatio || 1;
+        const rect = canvas.getBoundingClientRect();
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+        ctx.scale(dpr, dpr);
+        const W = rect.width, H = rect.height;
+        const pad = { top: 16, right: 16, bottom: 32, left: 36 };
+        const chartW = W - pad.left - pad.right;
+        const chartH = H - pad.top - pad.bottom;
+
+        ctx.clearRect(0, 0, W, H);
+
+        if (!values.length) {
+            ctx.fillStyle = '#bbb';
+            ctx.font = '13px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('No data yet', W / 2, H / 2);
+            return;
+        }
+
+        const maxVal = Math.max(...values, 1);
+
+        // grid lines
+        ctx.strokeStyle = '#f0f0f0';
+        ctx.lineWidth = 1;
+        for (let i = 0; i <= 4; i++) {
+            const y = pad.top + chartH - (i / 4) * chartH;
+            ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + chartW, y); ctx.stroke();
+            ctx.fillStyle = '#bbb';
+            ctx.font = '10px sans-serif';
+            ctx.textAlign = 'right';
+            ctx.fillText(Math.round((i / 4) * maxVal), pad.left - 4, y + 3);
+        }
+
+        const pts = values.map((v, i) => ({
+            x: pad.left + (i / Math.max(values.length - 1, 1)) * chartW,
+            y: pad.top + chartH - (v / maxVal) * chartH
+        }));
+
+        // gradient fill
+        const grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + chartH);
+        grad.addColorStop(0, color + '33');
+        grad.addColorStop(1, color + '00');
+        ctx.beginPath();
+        ctx.moveTo(pts[0].x, pad.top + chartH);
+        pts.forEach(p => ctx.lineTo(p.x, p.y));
+        ctx.lineTo(pts[pts.length - 1].x, pad.top + chartH);
+        ctx.closePath();
+        ctx.fillStyle = grad;
+        ctx.fill();
+
+        // line
+        ctx.beginPath();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2.5;
+        ctx.lineJoin = 'round';
+        pts.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
+        ctx.stroke();
+
+        // dots
+        pts.forEach(p => {
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+            ctx.fillStyle = '#fff';
+            ctx.fill();
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        });
+
+        // x labels
+        const step = Math.max(1, Math.floor(labels.length / 6));
+        ctx.fillStyle = '#aaa';
+        ctx.font = '10px sans-serif';
+        ctx.textAlign = 'center';
+        labels.forEach((l, i) => {
+            if (i % step === 0 || i === labels.length - 1) {
+                ctx.fillText(l, pts[i].x, H - 6);
+            }
+        });
+    }
+
+    /* ── Bar chart ── */
+    function drawBarChart(canvasId, labels, values) {
+        const canvas = document.getElementById(canvasId);
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const dpr = window.devicePixelRatio || 1;
+        const rect = canvas.getBoundingClientRect();
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+        ctx.scale(dpr, dpr);
+        const W = rect.width, H = rect.height;
+        const pad = { top: 16, right: 16, bottom: 48, left: 36 };
+        const chartW = W - pad.left - pad.right;
+        const chartH = H - pad.top - pad.bottom;
+
+        ctx.clearRect(0, 0, W, H);
+
+        if (!values.length) {
+            ctx.fillStyle = '#bbb';
+            ctx.font = '13px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('No data yet', W / 2, H / 2);
+            return;
+        }
+
+        const maxVal = Math.max(...values, 1);
+        const palette = ['#007bff', '#28a745', '#fd7e14', '#6f42c1', '#20c997', '#dc3545', '#ffc107', '#17a2b8'];
+        const gap = chartW / values.length;
+        const barW = Math.min(40, gap * 0.65);
+
+        // grid
+        ctx.strokeStyle = '#f0f0f0';
+        ctx.lineWidth = 1;
+        for (let i = 0; i <= 4; i++) {
+            const y = pad.top + chartH - (i / 4) * chartH;
+            ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + chartW, y); ctx.stroke();
+            ctx.fillStyle = '#bbb';
+            ctx.font = '10px sans-serif';
+            ctx.textAlign = 'right';
+            ctx.fillText(Math.round((i / 4) * maxVal), pad.left - 4, y + 3);
+        }
+
+        values.forEach((v, i) => {
+            const x = pad.left + gap * i + (gap - barW) / 2;
+            const barH = (v / maxVal) * chartH;
+            const y = pad.top + chartH - barH;
+            ctx.fillStyle = palette[i % palette.length];
+            ctx.beginPath();
+            if (ctx.roundRect) {
+                ctx.roundRect(x, y, barW, barH, [4, 4, 0, 0]);
+            } else {
+                ctx.rect(x, y, barW, barH);
+            }
+            ctx.fill();
+
+            // value on top
+            ctx.fillStyle = '#555';
+            ctx.font = 'bold 11px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(v, x + barW / 2, y - 4);
+
+            // rotated x label
+            ctx.save();
+            ctx.translate(x + barW / 2, H - 6);
+            ctx.rotate(-Math.PI / 5);
+            ctx.fillStyle = '#888';
+            ctx.font = '10px sans-serif';
+            ctx.textAlign = 'right';
+            ctx.fillText(fmtEx(labels[i]), 0, 0);
+            ctx.restore();
+        });
+    }
+
+    /* ── Filter ── */
+    let activeFilter = 'all';
+
+    function setFilter(ex) {
+        activeFilter = ex;
+        document.querySelectorAll('.filter-pill').forEach(p => {
+            p.classList.toggle('active', p.dataset.ex === ex);
+        });
+        renderHistory();
+    }
+
+    /* ── History table ── */
+    function renderHistory() {
+        const sets = loadSets();
+        const container = document.getElementById('historyContainer');
+        const filtered = activeFilter === 'all' ? sets : sets.filter(s => s.exercise === activeFilter);
+        const sorted = [...filtered].reverse();
+
+        if (!sorted.length) {
+            container.innerHTML = `
+        <div class="empty-state">
+          <div class="icon">🏋️</div>
+          <p>No sets saved yet.<br>Complete a workout and hit <strong>Save</strong> to see your history here.</p>
+        </div>`;
+            return;
+        }
+
+        // map filtered index back to original index for deletion
+        const originalIndices = [...filtered.keys()].map(i =>
+            sets.indexOf(filtered[i])
+        ).reverse();
+
+        const rows = sorted.map((s, i) => `
+      <tr>
+        <td>${fmtDateTime(s.dt)}</td>
+        <td><span class="badge">${fmtEx(s.exercise)}</span></td>
+        <td style="font-family:'DM Mono',monospace; font-weight:500;">${s.reps}</td>
+        <td>
+          <button onclick="deleteSet(${originalIndices[i]})"
+            style="background:none;border:none;cursor:pointer;color:#ccc;font-size:14px;"
+            title="Delete this set">✕</button>
+        </td>
+      </tr>`).join('');
+
+        container.innerHTML = `
+      <table class="history">
+        <thead>
+          <tr>
+            <th>Date / Time</th>
+            <th>Exercise</th>
+            <th>Reps</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+    }
+
+    function deleteSet(index) {
+        const sets = loadSets();
+        sets.splice(index, 1);
+        saveSetsData(sets);
+        init();
+    }
+
+    /* ── Main init ── */
+    function init() {
+        const sets = loadSets();
+
+        // stats
+        const totalReps = sets.reduce((s, x) => s + (Number(x.reps) || 0), 0);
+        const exercises = [...new Set(sets.map(s => s.exercise))];
+        const lastDt = sets.length ? fmtDate(sets[sets.length - 1].dt) : '—';
+
+        document.getElementById('statSets').textContent = sets.length;
+        document.getElementById('statReps').textContent = totalReps;
+        document.getElementById('statExercises').textContent = exercises.length;
+        document.getElementById('statLast').textContent = lastDt;
+
+        // filter pills
+        const pillsEl = document.getElementById('filterPills');
+        pillsEl.innerHTML = `<span class="filter-pill ${activeFilter === 'all' ? 'active' : ''}" data-ex="all">All</span>`;
+        exercises.forEach(ex => {
+            const span = document.createElement('span');
+            span.className = 'filter-pill' + (activeFilter === ex ? ' active' : '');
+            span.dataset.ex = ex;
+            span.textContent = fmtEx(ex);
+            span.onclick = () => setFilter(ex);
+            pillsEl.appendChild(span);
+        });
+        pillsEl.querySelector('[data-ex="all"]').onclick = () => setFilter('all');
+
+        // timeline chart (last 20 sets)
+        const recent = sets.slice(-20);
+        drawLineChart(
+            'chartTimeline',
+            recent.map(s => fmtDate(s.dt)),
+            recent.map(s => Number(s.reps) || 0),
+            '#007bff'
+        );
+
+        // by-exercise bar chart
+        const repsByEx = {};
+        sets.forEach(s => {
+            repsByEx[s.exercise] = (repsByEx[s.exercise] || 0) + (Number(s.reps) || 0);
+        });
+        const exKeys = Object.keys(repsByEx);
+        drawBarChart('chartByExercise', exKeys, exKeys.map(k => repsByEx[k]));
+
+        // personal bests
+        const pbGrid = document.getElementById('pbGrid');
+        if (!exercises.length) {
+            pbGrid.innerHTML = '<div class="empty-state"><p>No data yet.</p></div>';
+        } else {
+            const pbByEx = {};
+            sets.forEach(s => {
+                const r = Number(s.reps) || 0;
+                if (!pbByEx[s.exercise] || r > pbByEx[s.exercise]) pbByEx[s.exercise] = r;
+            });
+            pbGrid.innerHTML = Object.entries(pbByEx).map(([ex, val]) => `
+        <div class="pb-item">
+          <div class="pb-ex">${fmtEx(ex)}</div>
+          <div class="pb-val">${val}</div>
+          <div class="pb-label">best set</div>
+        </div>`).join('');
+        }
+
+        renderHistory();
+    }
+
+    init();
+
+    let resizeTimer;
+    window.addEventListener('resize', () => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(init, 120);
+    });
+</script>
+
 {% endblock %}

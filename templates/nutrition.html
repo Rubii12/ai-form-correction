@@ -3,110 +3,593 @@
 {% block body_class %}nutrition{% endblock %}
 
 {% block content %}
-<h2>Nutrition Calculator</h2>
 
-<form class="card form-card" method="POST" action="{{ url_for('nutrition') }}">
-    <div class="form-grid">
-        <input type="number" name="weight" placeholder="Weight (kg)" required value="{{ request.form.weight or '' }}">
-        <input type="number" name="height" placeholder="Height (cm)" required value="{{ request.form.height or '' }}">
-        <input type="number" name="age" placeholder="Age" required value="{{ request.form.age or '' }}">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,700;0,900;1,700&display=swap"
+    rel="stylesheet">
 
-        <select name="sex" required>
-            <option value="" disabled {% if not request.form.get('sex') %}selected{% endif %}>Sex</option>
-            <option value="male" {% if request.form.get('sex')=='male' %}selected{% endif %}>Male</option>
-            <option value="female" {% if request.form.get('sex')=='female' %}selected{% endif %}>Female</option>
-        </select>
+<style>
+    :root {
+        --red: #e8001d;
+        --bg: #0a0a0a;
+        --surface: #111;
+        --surface2: #1a1a1a;
+        --border: rgba(255, 255, 255, 0.07);
+        --muted: #555;
+    }
 
-        <select name="activity" required>
-            <option value="" disabled {% if not request.form.get('activity') %}selected{% endif %}>Activity</option>
-            <option value="sedentary" {% if request.form.get('activity')=='sedentary' %}selected{% endif %}>Sedentary
-            </option>
-            <option value="light" {% if request.form.get('activity')=='light' %}selected{% endif %}>Light</option>
-            <option value="moderate" {% if request.form.get('activity')=='moderate' %}selected{% endif %}>Moderate
-            </option>
-            <option value="active" {% if request.form.get('activity')=='active' %}selected{% endif %}>Active</option>
-            <option value="very_active" {% if request.form.get('activity')=='very_active' %}selected{% endif %}>Very
-                active</option>
-        </select>
+    body.nutrition {
+        background: #0a0a0a !important;
+        color: #f0f0f0;
+    }
 
-        <select name="goal" required>
-            <option value="" disabled {% if not request.form.get('goal') %}selected{% endif %}>Goal</option>
-            <option value="maintain" {% if request.form.get('goal')=='maintain' %}selected{% endif %}>Maintain</option>
-            <option value="muscle_gain" {% if request.form.get('goal')=='muscle_gain' %}selected{% endif %}>Muscle gain
-            </option>
-            <option value="fat_loss" {% if request.form.get('goal')=='fat_loss' %}selected{% endif %}>Fat loss</option>
-        </select>
+    body.nutrition::before {
+        background: none !important;
+    }
+
+    .page {
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 36px 32px 60px;
+    }
+
+    .page-header {
+        margin-bottom: 28px;
+        animation: fadeUp .5s both;
+    }
+
+    .page-header h2 {
+        font-family: 'Barlow Condensed', sans-serif;
+        font-weight: 900;
+        font-size: clamp(36px, 5vw, 56px);
+        text-transform: uppercase;
+        line-height: 1;
+        color: #fff;
+    }
+
+    .page-header h2 span {
+        color: var(--red);
+    }
+
+    .page-header p {
+        color: var(--muted);
+        font-size: 14px;
+        margin-top: 6px;
+    }
+
+    .form-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 28px;
+        margin-bottom: 28px;
+        animation: fadeUp .5s .1s both;
+    }
+
+    .card-title {
+        font-family: 'Barlow Condensed', sans-serif;
+        font-weight: 700;
+        font-size: 13px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 20px;
+    }
+
+    .form-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+        margin-bottom: 20px;
+    }
+
+    @media (max-width: 600px) {
+        .form-grid {
+            grid-template-columns: 1fr 1fr;
+        }
+    }
+
+    .field {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .field label {
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+    }
+
+    .field input,
+    .field select {
+        background: #0d0d0d;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        color: #fff;
+        font-size: 14px;
+        padding: 11px 14px;
+        outline: none;
+        transition: border-color .2s;
+        appearance: none;
+        -webkit-appearance: none;
+        width: 100%;
+    }
+
+    .field input:focus,
+    .field select:focus {
+        border-color: rgba(232, 0, 29, 0.5);
+    }
+
+    .field select option {
+        background: #111;
+    }
+
+    .btn-calc {
+        width: 100%;
+        padding: 14px;
+        border-radius: 8px;
+        border: none;
+        background: var(--red);
+        color: #fff;
+        font-family: 'Barlow Condensed', sans-serif;
+        font-weight: 700;
+        font-size: 17px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        cursor: pointer;
+        box-shadow: 0 0 24px rgba(232, 0, 29, 0.3);
+        transition: background .2s, box-shadow .2s;
+    }
+
+    .btn-calc:hover {
+        background: #ff1a34;
+        box-shadow: 0 0 36px rgba(232, 0, 29, 0.5);
+    }
+
+    .error-box {
+        background: rgba(232, 0, 29, 0.08);
+        border: 1px solid rgba(232, 0, 29, 0.25);
+        border-radius: 10px;
+        padding: 14px 18px;
+        color: #ff6b6b;
+        font-size: 14px;
+        margin-bottom: 20px;
+        animation: fadeUp .4s both;
+    }
+
+    .results-section {
+        animation: fadeUp .5s .1s both;
+    }
+
+    .results-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+        margin-bottom: 20px;
+    }
+
+    @media (max-width: 600px) {
+        .results-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .result-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 20px 22px;
+    }
+
+    .result-card .r-label {
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 6px;
+    }
+
+    .result-card .r-val {
+        font-family: 'Barlow Condensed', sans-serif;
+        font-weight: 900;
+        font-size: 38px;
+        color: #fff;
+        line-height: 1;
+    }
+
+    .result-card .r-val span {
+        font-size: 18px;
+        color: var(--muted);
+        margin-left: 2px;
+    }
+
+    .result-card.accent .r-val {
+        color: var(--red);
+    }
+
+    .macros-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 22px;
+        margin-bottom: 24px;
+    }
+
+    .macro-row {
+        margin-bottom: 16px;
+    }
+
+    .macro-row:last-child {
+        margin-bottom: 0;
+    }
+
+    .macro-top {
+        display: flex;
+        justify-content: space-between;
+        font-size: 13px;
+        margin-bottom: 7px;
+    }
+
+    .macro-name {
+        color: #aaa;
+        font-weight: 500;
+    }
+
+    .macro-val {
+        font-family: 'Barlow Condensed', sans-serif;
+        font-weight: 700;
+        font-size: 16px;
+        color: #fff;
+    }
+
+    .macro-bar {
+        height: 6px;
+        background: #1a1a1a;
+        border-radius: 999px;
+        overflow: hidden;
+    }
+
+    .macro-fill {
+        height: 100%;
+        width: 0%;
+        border-radius: 999px;
+        transition: width .7s cubic-bezier(.4, 0, .2, 1);
+    }
+
+    .section-heading {
+        font-family: 'Barlow Condensed', sans-serif;
+        font-weight: 900;
+        font-size: 28px;
+        text-transform: uppercase;
+        color: #fff;
+        margin-bottom: 4px;
+    }
+
+    .section-heading span {
+        color: var(--red);
+    }
+
+    .section-sub {
+        font-size: 13px;
+        color: var(--muted);
+        margin-bottom: 18px;
+    }
+
+    .meal-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 14px;
+    }
+
+    @media (max-width: 640px) {
+        .meal-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .meal-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 20px;
+        transition: border-color .2s, transform .2s;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .meal-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background: var(--red);
+        transform: scaleX(0);
+        transform-origin: left;
+        transition: transform .3s;
+    }
+
+    .meal-card:hover {
+        border-color: rgba(255, 255, 255, 0.12);
+        transform: translateY(-2px);
+    }
+
+    .meal-card:hover::before {
+        transform: scaleX(1);
+    }
+
+    .meal-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 14px;
+    }
+
+    .meal-name-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .meal-icon-box {
+        width: 38px;
+        height: 38px;
+        border-radius: 8px;
+        background: var(--surface2);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+    }
+
+    .meal-name {
+        font-family: 'Barlow Condensed', sans-serif;
+        font-weight: 700;
+        font-size: 18px;
+        text-transform: uppercase;
+        color: #fff;
+    }
+
+    .meal-kcal {
+        font-family: 'Barlow Condensed', sans-serif;
+        font-weight: 700;
+        font-size: 14px;
+        color: var(--muted);
+        background: #1a1a1a;
+        padding: 4px 10px;
+        border-radius: 6px;
+        white-space: nowrap;
+    }
+
+    .meal-items {
+        list-style: none;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .meal-items li {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 13px;
+    }
+
+    .item-name {
+        color: #999;
+    }
+
+    .item-qty {
+        color: #555;
+        font-size: 12px;
+        white-space: nowrap;
+    }
+
+    .meal-note {
+        font-size: 11px;
+        color: #444;
+        margin-top: 12px;
+    }
+
+    @keyframes fadeUp {
+        from {
+            opacity: 0;
+            transform: translateY(16px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    @media (max-width: 600px) {
+        .page {
+            padding: 20px 16px 40px;
+        }
+    }
+</style>
+
+<div class="page">
+
+    <div class="page-header">
+        <h2>Nutri<span>tion</span></h2>
+        <p>Calculate your daily needs and get a personalised meal plan.</p>
     </div>
 
-    <div style="display:flex; gap:12px; justify-content:center; margin-top:8px;">
-        <button class="btn" type="submit">Calculate</button>
-        <a class="btn ghost" href="{{ url_for('index') }}">Back</a>
-    </div>
-</form>
+    <form class="form-card" method="POST" action="{{ url_for('nutrition') }}">
+        <div class="card-title">Your Details</div>
+        <div class="form-grid">
 
-{% if error %}
-<div class="card" style="margin-top:16px;">
-    <p style="color: #b00020;"><strong>Error:</strong> {{ error }}</p>
-</div>
-{% endif %}
+            <div class="field">
+                <label>Weight (kg)</label>
+                <input type="number" name="weight" placeholder="e.g. 75" value="{{ request.form.weight or '' }}"
+                    required>
+            </div>
 
-{% if result %}
-<div class="card result-card" style="margin-top:18px; text-align:left;">
-    <h3 style="margin-top:0;">Results</h3>
-    <p><strong>BMR:</strong> {{ result.bmr }} kcal/day</p>
-    <p><strong>TDEE:</strong> {{ result.tdee }} kcal/day</p>
-    <p><strong>Protein:</strong> {{ result.protein_g }} g/day</p>
-    <p><strong>Fats:</strong> {{ result.fats_g }} g/day</p>
-    <p><strong>Carbs:</strong> {{ result.carbs_g }} g/day</p>
-</div>
+            <div class="field">
+                <label>Height (cm)</label>
+                <input type="number" name="height" placeholder="e.g. 175" value="{{ request.form.height or '' }}"
+                    required>
+            </div>
 
-{% if meals %}
-<div class="meal-plan-wrapper">
-    <h3 style="margin-top:0;">Suggested Meal Plan (approx.)</h3>
-    <p class="small">Portions are approximate and intended as examples to meet your daily macros.</p>
+            <div class="field">
+                <label>Age</label>
+                <input type="number" name="age" placeholder="e.g. 25" value="{{ request.form.age or '' }}" required>
+            </div>
 
-    <div class="meal-plan">
-        {% for meal in meals %}
-        {% set emoji = "🍽️" %}
-        {% if "Breakfast" in meal.name %}
-        {% set emoji = "🥣" %}
-        {% elif "Lunch" in meal.name %}
-        {% set emoji = "🍱" %}
-        {% elif "Dinner" in meal.name %}
-        {% set emoji = "🍛" %}
-        {% elif "Snack" in meal.name %}
-        {% set emoji = "🥜" %}
+            <div class="field">
+                <label>Sex</label>
+                <select name="sex" required>
+                    <option value="" disabled {% if not request.form.get('sex') %}selected{% endif %}>Select</option>
+                    <option value="male" {% if request.form.get('sex')=='male' %}selected{% endif %}>Male</option>
+                    <option value="female" {% if request.form.get('sex')=='female' %}selected{% endif %}>Female</option>
+                </select>
+            </div>
+
+            <div class="field">
+                <label>Activity</label>
+                <select name="activity" required>
+                    <option value="" disabled {% if not request.form.get('activity') %}selected{% endif %}>Select
+                    </option>
+                    <option value="sedentary" {% if request.form.get('activity')=='sedentary' %}selected{% endif %}>
+                        Sedentary</option>
+                    <option value="light" {% if request.form.get('activity')=='light' %}selected{% endif %}>Light
+                    </option>
+                    <option value="moderate" {% if request.form.get('activity')=='moderate' %}selected{% endif %}>
+                        Moderate</option>
+                    <option value="active" {% if request.form.get('activity')=='active' %}selected{% endif %}>Active
+                    </option>
+                    <option value="very_active" {% if request.form.get('activity')=='very_active' %}selected{% endif %}>
+                        Very Active</option>
+                </select>
+            </div>
+
+            <div class="field">
+                <label>Goal</label>
+                <select name="goal" required>
+                    <option value="" disabled {% if not request.form.get('goal') %}selected{% endif %}>Select</option>
+                    <option value="maintain" {% if request.form.get('goal')=='maintain' %}selected{% endif %}>Maintain
+                    </option>
+                    <option value="muscle_gain" {% if request.form.get('goal')=='muscle_gain' %}selected{% endif %}>
+                        Muscle Gain</option>
+                    <option value="fat_loss" {% if request.form.get('goal')=='fat_loss' %}selected{% endif %}>Fat Loss
+                    </option>
+                </select>
+            </div>
+
+        </div>
+        <button class="btn-calc" type="submit">Calculate →</button>
+    </form>
+
+    {% if error %}
+    <div class="error-box">⚠ {{ error }}</div>
+    {% endif %}
+
+    {% if result %}
+    <div class="results-section">
+
+        <div class="results-grid">
+            <div class="result-card">
+                <div class="r-label">BMR</div>
+                <div class="r-val">{{ "{:,}".format(result.bmr) }} <span>kcal</span></div>
+            </div>
+            <div class="result-card accent">
+                <div class="r-label">TDEE</div>
+                <div class="r-val">{{ "{:,}".format(result.tdee) }} <span>kcal</span></div>
+            </div>
+        </div>
+
+        {% set total_macros = result.protein_g * 4 + result.carbs_g * 4 + result.fats_g * 9 %}
+        {% set p_pct = ((result.protein_g * 4 / total_macros) * 100)|round|int %}
+        {% set c_pct = ((result.carbs_g * 4 / total_macros) * 100)|round|int %}
+        {% set f_pct = ((result.fats_g * 9 / total_macros) * 100)|round|int %}
+
+        <div class="macros-card">
+            <div class="card-title">Daily Macros</div>
+
+            <div class="macro-row">
+                <div class="macro-top">
+                    <span class="macro-name">🥩 Protein</span>
+                    <span class="macro-val">{{ result.protein_g }}g</span>
+                </div>
+                <div class="macro-bar">
+                    <div class="macro-fill" id="barProtein" style="background:#e8001d;"></div>
+                </div>
+            </div>
+
+            <div class="macro-row">
+                <div class="macro-top">
+                    <span class="macro-name">🍚 Carbohydrates</span>
+                    <span class="macro-val">{{ result.carbs_g }}g</span>
+                </div>
+                <div class="macro-bar">
+                    <div class="macro-fill" id="barCarbs" style="background:#f5a623;"></div>
+                </div>
+            </div>
+
+            <div class="macro-row">
+                <div class="macro-top">
+                    <span class="macro-name">🥑 Fats</span>
+                    <span class="macro-val">{{ result.fats_g }}g</span>
+                </div>
+                <div class="macro-bar">
+                    <div class="macro-fill" id="barFats" style="background:#28a745;"></div>
+                </div>
+            </div>
+        </div>
+
+        {% if meals %}
+        <div class="meal-section">
+            <div class="section-heading">Meal <span>Plan</span></div>
+            <div class="section-sub">Approximate portions to hit your daily targets.</div>
+
+            <div class="meal-grid">
+                {% for meal in meals %}
+                {% if "Breakfast" in meal.name %}{% set icon = "🥣" %}
+                {% elif "Lunch" in meal.name %}{% set icon = "🍱" %}
+                {% elif "Dinner" in meal.name %}{% set icon = "🍛" %}
+                {% else %}{% set icon = "🥜" %}{% endif %}
+
+                <div class="meal-card">
+                    <div class="meal-top">
+                        <div class="meal-name-row">
+                            <div class="meal-icon-box">{{ icon }}</div>
+                            <div class="meal-name">{{ meal.name }}</div>
+                        </div>
+                        <div class="meal-kcal">{{ meal.kcal }} kcal</div>
+                    </div>
+                    <ul class="meal-items">
+                        {% for item, qty in meal['items'] %}
+                        <li>
+                            <span class="item-name">🍴 {{ item }}</span>
+                            <span class="item-qty">{{ qty }}</span>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    <div class="meal-note">Adjust portions to taste.</div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
         {% endif %}
 
-        <article class="meal-card" role="group" aria-label="{{ meal.name }} suggested foods">
-            <div class="meal-icon" aria-hidden="true">{{ emoji }}</div>
-
-            <div class="meal-content">
-                <div class="meal-header">
-                    <h4>{{ meal.name }}</h4>
-                    <div class="meal-kcal">{{ meal.kcal }} kcal</div>
-                </div>
-
-                <ul class="meal-items">
-                    {% for item, qty in meal['items'] %}
-                    <li>
-                        <span class="item-name">🍴 {{ item }}</span>
-                        <span class="item-qty">{{ qty }}</span>
-                    </li>
-                    {% endfor %}
-                </ul>
-
-                <div class="meal-note">Portions are approximate — adjust to taste.</div>
-            </div>
-        </article>
-        {% endfor %}
     </div>
+
+    <script>
+        requestAnimationFrame(function () {
+            document.getElementById('barProtein').style.width = '{{ p_pct }}%';
+            document.getElementById('barCarbs').style.width = '{{ c_pct }}%';
+            document.getElementById('barFats').style.width = '{{ f_pct }}%';
+        });
+    </script>
+
+    {% endif %}
+
 </div>
-{% else %}
-<div class="card" style="margin-top:12px;">
-    <p class="small muted">No meal suggestions available.</p>
-</div>
-{% endif %}
-{% endif %}
 
 {% endblock %}

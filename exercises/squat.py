@@ -1,6 +1,8 @@
 # exercises/squat.py
 import cv2
 import time
+
+from streamlit import status
 from utils import angle_calculations
 
 _STATE = {"smoothed": None, "in_down": False, "rep_count": 0, "last_rep_ts": 0.0, "last_angle": None, "last_ts": None, "tick": 0}
@@ -73,22 +75,54 @@ def process_frame(frame, pose_landmarks, mp_pose):
         status = "mid"
 
     suggestions = []
-    if aint > 140:
-        suggestions.append("Push hips back and sit between feet.")
-    if aint < 70:
-        suggestions.append("Control depth to protect knees.")
+    rep_quality = "good"
+
+# Range of motion
+    if _STATE["in_down"] and aint > 110:
+        suggestions.append("Go deeper — aim for thighs parallel to floor.")
+        rep_quality = "needs work"
+    elif aint < 60:
+        suggestions.append("Control depth — protect your knees.")
+        rep_quality = "okay"
+
+# Phase-specific cues
+    if status == "down":
+        if vel < -80:  # dropping too fast (negative = descending)
+            suggestions.append("Slow down the descent — 2-3 seconds down.")
+            rep_quality = "okay"
+        elif not suggestions:
+            suggestions.append("Drive through your heels to stand.")
+    elif status == "up":
+        if not suggestions:
+            suggestions.append("Stand tall — squeeze glutes at the top.")
+    elif status == "mid":
+        if vel > 0 and aint < 130:
+            suggestions.append("Keep chest up as you rise.")
+
+# Knee tracking (rough check — if knee angle is very asymmetric this fires less reliably)
+    if aint <= DOWN_THR and aint > 70:
+        suggestions.append("Push knees out over toes.")
 
     info = {
         "knee_angle": aint,
-        "smoothed_angle": int(round(_STATE["smoothed"])),
-        "status": status,
-        "suggestions": suggestions,
-        "rep_count": int(_STATE["rep_count"]),
-        "last_rep_ts": _STATE["last_rep_ts"]
-    }
+    "smoothed_angle": int(round(_STATE["smoothed"])),
+    "status": status,
+    "suggestions": suggestions[:2],  # max 2 at a time
+    "rep_quality": rep_quality,
+    "rep_count": int(_STATE["rep_count"]),
+    "last_rep_ts": _STATE["last_rep_ts"]
+}
 
     _STATE["tick"] = (_STATE["tick"] + 1) % 80
     if _STATE["tick"] == 0:
         print(f"[squat] sm={_STATE['smoothed']:.1f} a={aint} vel={vel:.1f} in_down={_STATE['in_down']} reps={_STATE['rep_count']}")
 
     return frame, info
+def reset():
+    """Reset rep counter and state machine (called by /reset_reps endpoint)."""
+    _STATE["smoothed"] = None
+    _STATE["in_down"] = False
+    _STATE["rep_count"] = 0
+    _STATE["last_rep_ts"] = 0.0
+    _STATE["last_angle"] = None  # use "last_val" for jumping_jacks.py
+    _STATE["last_ts"] = None
