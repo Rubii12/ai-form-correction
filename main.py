@@ -1,9 +1,13 @@
-from flask import Flask, render_template, Response, request, jsonify
+from flask import Flask, render_template, request, jsonify
+from flask_sock import Sock
 import time
 import threading
 import json
+import base64
+import numpy as np
 
 app = Flask(__name__)
+sock = Sock(app)
 
 try:
     import cv2
@@ -18,10 +22,6 @@ from utils import angle_calculations, visualisations
 
 LATEST_VIDEO_INFO      = {}
 LATEST_VIDEO_INFO_LOCK = threading.Lock()
-_ACTIVE_EXERCISE       = {"name": None}
-_ACTIVE_EXERCISE_LOCK  = threading.Lock()
-_CAM_READY             = threading.Event()
-_CAM_READY.set()  # starts as "ready"
 
 import random
 
@@ -136,125 +136,116 @@ def workout():
     return render_template("workout.html")
 
 
-def gen_frames_for_exercise(exercise_name="squat"):
+# ── WebSocket handler ────────────────────────────────────────────────────────
+
+@sock.route("/ws")
+def ws_workout(ws):
+    """
+    WebSocket handler for workout camera feed.
+    Protocol:
+      Client → Server: JSON { "type": "exercise", "name": "squat" }
+                    or: binary JPEG frame bytes
+      Server → Client: JSON { "type": "info", ...info fields... }
+                    or: binary annotated JPEG frame bytes
+    """
     if not MEDIAPIPE_AVAILABLE:
-        msg_frame = visualisations.make_text_frame(
-            "MediaPipe or OpenCV not installed.\nInstall to use camera features.")
-        while True:
-            ret, jpg = cv2.imencode('.jpg', msg_frame)
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + jpg.tobytes() + b'\r\n')
-            time.sleep(0.2)
+        ws.send(json.dumps({"type": "error", "message": "MediaPipe not available on server."}))
         return
 
-    # Wait for previous stream to fully release the camera (max 2s)
-    _CAM_READY.wait(timeout=2.0)
-    _CAM_READY.clear()  # mark camera as in use
+    mp_pose     = mp.solutions.pose
+    pose        = mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5)
+    exercise    = "squat"
 
-    cap = None
-    try:
-        cap = cv2.VideoCapture(0)
-    except Exception as e:
-        print(f"[camera] VideoCapture failed: {e}")
-        _CAM_READY.set()
-        return
-
-    try:
-        opened = cap.isOpened()
-    except Exception as e:
-        print(f"[camera] isOpened() failed: {e}")
-        _CAM_READY.set()
-        return
-
-    if not opened:
-        print("[camera] Could not open webcam.")
-        _CAM_READY.set()
-        return
-
-    mp_pose = mp.solutions.pose
-    pose    = mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5)
-
-    print(f"[camera] {exercise_name} stream started.")
+    print(f"[ws] Client connected")
 
     try:
         while True:
-            # Exit cleanly if a newer stream has taken over
-            with _ACTIVE_EXERCISE_LOCK:
-                if _ACTIVE_EXERCISE["name"] != exercise_name:
-                    print(f"[camera] {exercise_name} superseded, stopping.")
-                    break
-
-            try:
-                success, frame = cap.read()
-            except Exception:
+            message = ws.receive()
+            if message is None:
                 break
 
-            if not success:
-                time.sleep(0.05)
+            # Text message — exercise switch command
+            if isinstance(message, str):
+                try:
+                    data = json.loads(message)
+                    if data.get("type") == "exercise":
+                        exercise = data.get("name", "squat")
+                        print(f"[ws] Switched to {exercise}")
+                        # Reset the exercise module state
+                        module = EXERCISE_MAP.get(exercise)
+                        if module and hasattr(module, "reset"):
+                            module.reset()
+                except Exception as e:
+                    print(f"[ws] JSON parse error: {e}")
                 continue
 
+            # Binary message — JPEG frame from browser
             try:
+                # Decode JPEG bytes to numpy array
+                jpg_arr = np.frombuffer(message, dtype=np.uint8)
+                frame   = cv2.imdecode(jpg_arr, cv2.IMREAD_COLOR)
+                if frame is None:
+                    continue
+
+                # Run MediaPipe
                 frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 results   = pose.process(frame_rgb)
-            except Exception:
+
+                annotated = frame.copy()
+                info      = {}
+
+                if results.pose_landmarks:
+                    module = EXERCISE_MAP.get(exercise, EXERCISE_MAP.get("squat"))
+                    try:
+                        annotated, info = module.process_frame(
+                            annotated, results.pose_landmarks, mp_pose)
+                    except Exception as e:
+                        print(f"[ws] Module error: {e}")
+                        annotated = frame.copy()
+                        info      = {"status": "module_error"}
+
+                # Update shared info store
+                try:
+                    with LATEST_VIDEO_INFO_LOCK:
+                        LATEST_VIDEO_INFO.clear()
+                        if info:
+                            for k, v in info.items():
+                                if isinstance(v, (int, float, str, bool, type(None), list, dict)):
+                                    LATEST_VIDEO_INFO[k] = v
+                                else:
+                                    LATEST_VIDEO_INFO[k] = str(v)
+                        LATEST_VIDEO_INFO["_ts"]      = time.time()
+                        LATEST_VIDEO_INFO["exercise"] = exercise
+                except Exception:
+                    pass
+
+                # Send annotated frame back as binary
+                ret, buffer = cv2.imencode('.jpg', annotated, [cv2.IMWRITE_JPEG_QUALITY, 80])
+                if ret:
+                    ws.send(buffer.tobytes())
+
+                # Send info as JSON
+                safe_info = {}
+                for k, v in info.items():
+                    if isinstance(v, (int, float, str, bool, type(None), list, dict)):
+                        safe_info[k] = v
+                    else:
+                        safe_info[k] = str(v)
+                safe_info["exercise"] = exercise
+                ws.send(json.dumps({"type": "info", **safe_info}))
+
+            except Exception as e:
+                print(f"[ws] Frame processing error: {e}")
                 continue
 
-            annotated = frame.copy()
-            info      = {}
-
-            if results.pose_landmarks:
-                module = EXERCISE_MAP.get(exercise_name, EXERCISE_MAP.get("squat"))
-                try:
-                    annotated, info = module.process_frame(
-                        annotated, results.pose_landmarks, mp_pose)
-                except Exception as e:
-                    print(f"[module error] {e}")
-                    annotated = frame.copy()
-                    info      = {"status": "module_error"}
-
-            try:
-                with LATEST_VIDEO_INFO_LOCK:
-                    LATEST_VIDEO_INFO.clear()
-                    if info:
-                        for k, v in info.items():
-                            if isinstance(v, (int, float, str, bool, type(None), list, dict)):
-                                LATEST_VIDEO_INFO[k] = v
-                            else:
-                                LATEST_VIDEO_INFO[k] = str(v)
-                    LATEST_VIDEO_INFO["_ts"]      = time.time()
-                    LATEST_VIDEO_INFO["exercise"] = exercise_name
-            except Exception:
-                pass
-
-            try:
-                ret, buffer = cv2.imencode('.jpg', annotated)
-                yield (b'--frame\r\n'
-                       b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
-            except Exception:
-                break
-
+    except Exception as e:
+        print(f"[ws] Connection error: {e}")
     finally:
-        try:
-            cap.release()
-        except Exception:
-            pass
-        try:
-            pose.close()
-        except Exception:
-            pass
-        _CAM_READY.set()  # signal camera is free
-        print(f"[camera] {exercise_name} stream closed.")
+        pose.close()
+        print(f"[ws] Client disconnected")
 
 
-@app.route("/video_feed")
-def video_feed():
-    exercise = request.args.get("exercise", "squat")
-    with _ACTIVE_EXERCISE_LOCK:
-        _ACTIVE_EXERCISE["name"] = exercise
-    return Response(
-        gen_frames_for_exercise(exercise),
-        mimetype='multipart/x-mixed-replace; boundary=frame')
-
+# ── REST routes ──────────────────────────────────────────────────────────────
 
 @app.route("/video_info")
 def video_info():

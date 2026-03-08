@@ -117,47 +117,89 @@
         overflow: hidden;
         position: relative;
         min-height: 240px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
 
-    .video-panel img {
+    #liveFeed {
         width: 100%;
         height: auto;
         display: block;
+        border-radius: 14px;
     }
 
-    .video-switching {
+    /* Camera permission / status overlay */
+    .cam-overlay {
         position: absolute;
         inset: 0;
-        display: none;
+        display: flex;
+        flex-direction: column;
         align-items: center;
         justify-content: center;
-        background: rgba(10, 10, 10, 0.85);
+        background: #0a0a0a;
+        border-radius: 14px;
+        gap: 14px;
+        padding: 24px;
+        text-align: center;
+    }
+
+    .cam-overlay.hidden {
+        display: none;
+    }
+
+    .cam-overlay .cam-icon {
+        font-size: 40px;
+    }
+
+    .cam-overlay p {
+        font-size: 14px;
+        color: var(--muted);
+        line-height: 1.5;
+        max-width: 260px;
+    }
+
+    .btn-start-cam {
+        padding: 12px 28px;
+        border-radius: 8px;
+        border: none;
+        background: var(--red);
+        color: #fff;
         font-family: 'Barlow Condensed', sans-serif;
         font-weight: 700;
         font-size: 16px;
         letter-spacing: 0.08em;
         text-transform: uppercase;
-        color: #555;
-        gap: 10px;
+        cursor: pointer;
+        box-shadow: 0 0 24px rgba(232, 0, 29, 0.3);
+        transition: all .2s;
     }
 
-    .video-switching.show {
-        display: flex;
+    .btn-start-cam:hover {
+        background: #ff1a34;
+        box-shadow: 0 0 36px rgba(232, 0, 29, 0.5);
     }
 
-    .switch-spinner {
-        width: 18px;
-        height: 18px;
-        border: 2px solid #333;
-        border-top-color: var(--red);
-        border-radius: 50%;
-        animation: spin .7s linear infinite;
+    .conn-status {
+        position: absolute;
+        bottom: 12px;
+        right: 14px;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--muted);
+        background: rgba(0, 0, 0, 0.6);
+        padding: 4px 10px;
+        border-radius: 4px;
     }
 
-    @keyframes spin {
-        to {
-            transform: rotate(360deg);
-        }
+    .conn-status.connected {
+        color: #4caf7d;
+    }
+
+    .conn-status.error {
+        color: #ff4d63;
     }
 
     .video-label {
@@ -422,7 +464,7 @@
 
     <div class="page-header">
         <h2>Work<span>out</span></h2>
-        <p>Select an exercise — camera feed and live stats appear below.</p>
+        <p>Select an exercise and allow camera access to begin.</p>
     </div>
 
     <div class="ex-pills">
@@ -438,19 +480,26 @@
 
     <div class="workout-layout">
 
+        <!-- Video panel -->
         <div class="video-panel">
-            <img id="liveFeed" src="{{ url_for('video_feed') }}?exercise={{ request.args.get('exercise','squat') }}"
-                alt="Live camera feed">
-            <div class="video-switching" id="videoSwitching">
-                <div class="switch-spinner"></div>
-                Switching...
+            <canvas id="liveFeed"></canvas>
+
+            <!-- Overlay shown before camera starts -->
+            <div class="cam-overlay" id="camOverlay">
+                <div class="cam-icon">📷</div>
+                <p>Camera access needed for pose detection. Your video is processed on the server and never stored.</p>
+                <button class="btn-start-cam" id="startCamBtn">Start Camera</button>
             </div>
-            <div class="video-label">
+
+            <div class="video-label" id="videoLabel" style="display:none;">
                 <div class="rec-dot"></div>
-                <span id="videoLabel">{{ request.args.get('exercise','squat')|replace('_',' ')|title }}</span>
+                <span id="videoLabelText">Squat</span>
             </div>
+
+            <div class="conn-status" id="connStatus">Disconnected</div>
         </div>
 
+        <!-- Info panel -->
         <div class="info-panel">
 
             <div class="metrics-grid">
@@ -470,7 +519,7 @@
 
             <div class="suggestion-box">
                 <div class="box-header">💬 Coach Feedback</div>
-                <div class="s-text" id="liveSuggestion">No suggestions yet.</div>
+                <div class="s-text" id="liveSuggestion">Start camera to begin.</div>
                 <div class="quality-badge" id="qualityBadge"></div>
             </div>
 
@@ -494,10 +543,19 @@
 
 <div class="toast" id="toast">✓ Set saved</div>
 
+<!-- Hidden canvas for capturing frames -->
+<canvas id="captureCanvas" style="display:none;"></canvas>
+
 <script>
-    const FEED_IMG = document.getElementById('liveFeed');
-    const videoLabel = document.getElementById('videoLabel');
-    const videoSwitching = document.getElementById('videoSwitching');
+    // ── Elements ─────────────────────────────────────────────────────────────
+    const liveCanvas = document.getElementById('liveFeed');
+    const captureCanvas = document.getElementById('captureCanvas');
+    const liveCtx = liveCanvas.getContext('2d');
+    const camOverlay = document.getElementById('camOverlay');
+    const startCamBtn = document.getElementById('startCamBtn');
+    const videoLabelEl = document.getElementById('videoLabel');
+    const videoLabelTxt = document.getElementById('videoLabelText');
+    const connStatus = document.getElementById('connStatus');
     const liveRepsEl = document.getElementById('liveReps');
     const liveAngleEl = document.getElementById('liveAngle');
     const liveStatusEl = document.getElementById('liveStatus');
@@ -509,11 +567,40 @@
     const logBody = document.getElementById('sessionLogBody');
     const toast = document.getElementById('toast');
 
+    // ── State ─────────────────────────────────────────────────────────────────
     const LS_KEY = 'ai_local_sets_v1';
-    function loadSets() { try { return JSON.parse(localStorage.getItem(LS_KEY) || '[]'); } catch (e) { return []; } }
+    let sessionSets = [];
+    let ws = null;
+    let videoStream = null;
+    let sendInterval = null;
+    let isRunning = false;
+
+    const state = {
+        exercise: (new URLSearchParams(window.location.search)).get('exercise') || 'squat'
+    };
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+    function loadSets() {
+        try { return JSON.parse(localStorage.getItem(LS_KEY) || '[]'); }
+        catch (e) { return []; }
+    }
+
     function saveSets(a) { localStorage.setItem(LS_KEY, JSON.stringify(a)); }
 
-    let sessionSets = [];
+    function fmtEx(ex) {
+        return (ex || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    }
+
+    function showToast(msg) {
+        toast.textContent = msg;
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 2200);
+    }
+
+    function setConnStatus(state, msg) {
+        connStatus.textContent = msg;
+        connStatus.className = 'conn-status ' + state;
+    }
 
     function renderSessionLog() {
         if (!sessionSets.length) {
@@ -527,38 +614,11 @@
             </div>`).join('');
     }
 
-    function fmtEx(ex) {
-        return (ex || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-    }
-
-    function showToast(msg) {
-        toast.textContent = msg;
-        toast.classList.add('show');
-        setTimeout(() => toast.classList.remove('show'), 2200);
-    }
-
-    const state = {
-        exercise: (new URLSearchParams(window.location.search)).get('exercise') || 'squat'
-    };
-
+    // ── Pills ─────────────────────────────────────────────────────────────────
     const pills = document.querySelectorAll('.ex-pill');
 
     function setActivePill(ex) {
         pills.forEach(p => p.classList.toggle('active', p.dataset.ex === ex));
-    }
-
-    function switchFeed(ex) {
-        // Show switching overlay
-        videoSwitching.classList.add('show');
-        FEED_IMG.src = '';
-
-        // Wait 2.5s for old stream to fully close before requesting new one
-        setTimeout(() => {
-            FEED_IMG.src = "{{ url_for('video_feed') }}?exercise=" + encodeURIComponent(ex);
-            FEED_IMG.onload = () => videoSwitching.classList.remove('show');
-            // Fallback: hide overlay after 5s regardless
-            setTimeout(() => videoSwitching.classList.remove('show'), 5000);
-        }, 2500);
     }
 
     pills.forEach(pill => {
@@ -571,8 +631,14 @@
             url.searchParams.set('exercise', ex);
             window.history.pushState({}, '', url);
             setActivePill(ex);
-            switchFeed(ex);
-            videoLabel.textContent = fmtEx(ex);
+            videoLabelTxt.textContent = fmtEx(ex);
+
+            // Tell server to switch exercise
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'exercise', name: ex }));
+            }
+
+            // Reset UI
             liveRepsEl.textContent = '0';
             liveAngleEl.textContent = '—';
             liveStatusEl.textContent = '—';
@@ -585,62 +651,165 @@
 
     setActivePill(state.exercise);
 
-    async function poll() {
-        try {
-            const res = await fetch("{{ url_for('video_info') }}", { cache: 'no-store' });
-            const info = await res.json();
+    // ── WebSocket ─────────────────────────────────────────────────────────────
+    function connectWS() {
+        const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = proto + '//' + window.location.host + '/ws';
 
-            if (!info || info.status === 'no_data') {
-                liveStatusEl.textContent = 'No pose';
-                qualityBadge.style.display = 'none';
+        setConnStatus('', 'Connecting...');
+        ws = new WebSocket(wsUrl);
+        ws.binaryType = 'arraybuffer';
+
+        ws.onopen = () => {
+            setConnStatus('connected', 'Connected');
+            // Tell server which exercise we're on
+            ws.send(JSON.stringify({ type: 'exercise', name: state.exercise }));
+            startSendingFrames();
+        };
+
+        ws.onmessage = (event) => {
+            if (event.data instanceof ArrayBuffer) {
+                // Binary — annotated JPEG frame
+                const blob = new Blob([event.data], { type: 'image/jpeg' });
+                const url = URL.createObjectURL(blob);
+                const img = new Image();
+                img.onload = () => {
+                    liveCanvas.width = img.width;
+                    liveCanvas.height = img.height;
+                    liveCtx.drawImage(img, 0, 0);
+                    URL.revokeObjectURL(url);
+                };
+                img.src = url;
             } else {
-                const angle = info.knee_angle ?? info.elbow_angle ?? info.hip_angle ?? info.angle ?? null;
-                liveAngleEl.textContent = angle != null ? Math.round(angle) + '°' : '—';
-                liveRepsEl.textContent = info.rep_count != null ? String(info.rep_count) : '0';
-                liveStatusEl.textContent = info.status ?? '—';
-
-                let sug = '';
-                if (Array.isArray(info.suggestions) && info.suggestions.length) {
-                    sug = info.suggestions.join(' · ');
-                } else if (typeof info.suggestions === 'string' && info.suggestions.length) {
-                    try {
-                        const arr = JSON.parse(info.suggestions);
-                        sug = Array.isArray(arr) ? arr.join(' · ') : info.suggestions;
-                    } catch { sug = info.suggestions; }
-                }
-                liveSugEl.textContent = sug || 'No suggestions yet.';
-
-                const q = info.rep_quality;
-                if (q) {
-                    const map = {
-                        'good': ['✓ Good form', ''],
-                        'okay': ['⚠ Okay', 'okay'],
-                        'needs work': ['✗ Needs work', 'bad']
-                    };
-                    const [label, cls] = map[q] || [q, ''];
-                    qualityBadge.textContent = label;
-                    qualityBadge.className = 'quality-badge' + (cls ? ' ' + cls : '');
-                    qualityBadge.style.display = 'inline-flex';
-                } else {
-                    qualityBadge.style.display = 'none';
-                }
-
-                if (info.last_rep_ts) {
-                    let ts = Number(info.last_rep_ts);
-                    if (ts > 1e12) ts = Math.floor(ts / 1000);
-                    recentEl.textContent = 'Last rep: ' + new Date(ts * 1000).toLocaleTimeString();
-                }
+                // Text — info JSON
+                try {
+                    const info = JSON.parse(event.data);
+                    if (info.type === 'info') updateInfo(info);
+                } catch (e) { }
             }
-        } catch (e) {
-            liveStatusEl.textContent = 'Error';
-        } finally {
-            setTimeout(poll, 250);
+        };
+
+        ws.onerror = () => setConnStatus('error', 'Error');
+
+        ws.onclose = () => {
+            setConnStatus('error', 'Disconnected');
+            stopSendingFrames();
+            // Reconnect after 2s if camera still running
+            if (isRunning) setTimeout(connectWS, 2000);
+        };
+    }
+
+    // ── Camera capture & send ─────────────────────────────────────────────────
+    const hiddenVideo = document.createElement('video');
+    hiddenVideo.autoplay = true;
+    hiddenVideo.playsInline = true;
+    hiddenVideo.muted = true;
+
+    function startSendingFrames() {
+        if (sendInterval) return;
+        sendInterval = setInterval(() => {
+            if (!ws || ws.readyState !== WebSocket.OPEN) return;
+            if (hiddenVideo.readyState < 2) return;
+
+            const w = hiddenVideo.videoWidth;
+            const h = hiddenVideo.videoHeight;
+            if (!w || !h) return;
+
+            captureCanvas.width = w;
+            captureCanvas.height = h;
+            const ctx = captureCanvas.getContext('2d');
+            ctx.drawImage(hiddenVideo, 0, 0, w, h);
+
+            captureCanvas.toBlob(blob => {
+                if (!blob || !ws || ws.readyState !== WebSocket.OPEN) return;
+                blob.arrayBuffer().then(buf => ws.send(buf));
+            }, 'image/jpeg', 0.7);
+        }, 100); // ~10 fps to server
+    }
+
+    function stopSendingFrames() {
+        if (sendInterval) { clearInterval(sendInterval); sendInterval = null; }
+    }
+
+    // ── Start camera button ───────────────────────────────────────────────────
+    startCamBtn.addEventListener('click', async () => {
+        try {
+            startCamBtn.textContent = 'Starting...';
+            startCamBtn.disabled = true;
+
+            videoStream = await navigator.mediaDevices.getUserMedia({
+                video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
+                audio: false
+            });
+
+            hiddenVideo.srcObject = videoStream;
+            await hiddenVideo.play();
+
+            // Hide overlay, show label
+            camOverlay.classList.add('hidden');
+            videoLabelEl.style.display = 'flex';
+            videoLabelTxt.textContent = fmtEx(state.exercise);
+            isRunning = true;
+
+            // Connect WebSocket
+            connectWS();
+
+        } catch (err) {
+            startCamBtn.textContent = 'Start Camera';
+            startCamBtn.disabled = false;
+            if (err.name === 'NotAllowedError') {
+                camOverlay.querySelector('p').textContent =
+                    '⚠ Camera permission denied. Please allow camera access in your browser settings and try again.';
+            } else {
+                camOverlay.querySelector('p').textContent =
+                    '⚠ Could not access camera: ' + err.message;
+            }
+        }
+    });
+
+    // ── Update info panel ─────────────────────────────────────────────────────
+    function updateInfo(info) {
+        const angle = info.knee_angle ?? info.elbow_angle ?? info.hip_angle ?? info.angle ?? null;
+        liveAngleEl.textContent = angle != null ? Math.round(angle) + '°' : '—';
+        liveRepsEl.textContent = info.rep_count != null ? String(info.rep_count) : '0';
+        liveStatusEl.textContent = info.status ?? '—';
+
+        let sug = '';
+        if (Array.isArray(info.suggestions) && info.suggestions.length) {
+            sug = info.suggestions.join(' · ');
+        } else if (typeof info.suggestions === 'string' && info.suggestions.length) {
+            try {
+                const arr = JSON.parse(info.suggestions);
+                sug = Array.isArray(arr) ? arr.join(' · ') : info.suggestions;
+            } catch { sug = info.suggestions; }
+        }
+        liveSugEl.textContent = sug || 'No suggestions yet.';
+
+        const q = info.rep_quality;
+        if (q) {
+            const map = {
+                'good': ['✓ Good form', ''],
+                'okay': ['⚠ Okay', 'okay'],
+                'needs work': ['✗ Needs work', 'bad']
+            };
+            const [label, cls] = map[q] || [q, ''];
+            qualityBadge.textContent = label;
+            qualityBadge.className = 'quality-badge' + (cls ? ' ' + cls : '');
+            qualityBadge.style.display = 'inline-flex';
+        } else {
+            qualityBadge.style.display = 'none';
+        }
+
+        if (info.last_rep_ts) {
+            let ts = Number(info.last_rep_ts);
+            if (ts > 1e12) ts = Math.floor(ts / 1000);
+            recentEl.textContent = 'Last rep: ' + new Date(ts * 1000).toLocaleTimeString();
         }
     }
 
-    setTimeout(poll, 120);
-
+    // ── Reset ─────────────────────────────────────────────────────────────────
     resetBtn.addEventListener('click', async () => {
+        // Tell server to reset via REST (keeps working even if WS is reconnecting)
         try {
             const res = await fetch("{{ url_for('reset_reps') }}", {
                 method: 'POST',
@@ -661,6 +830,7 @@
         }
     });
 
+    // ── Save ──────────────────────────────────────────────────────────────────
     saveBtn.addEventListener('click', () => {
         const sets = loadSets();
         const reps = Number(liveRepsEl.textContent) || 0;
