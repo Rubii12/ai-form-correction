@@ -16,31 +16,32 @@ except Exception as e:
 from exercises import EXERCISE_MAP
 from utils import angle_calculations, visualisations
 
-LATEST_VIDEO_INFO = {}
+LATEST_VIDEO_INFO      = {}
 LATEST_VIDEO_INFO_LOCK = threading.Lock()
-
-# Single camera lock — prevents multiple streams grabbing the webcam simultaneously
-_CAM_LOCK = threading.Lock()
+_ACTIVE_EXERCISE       = {"name": None}
+_ACTIVE_EXERCISE_LOCK  = threading.Lock()
+_CAM_READY             = threading.Event()
+_CAM_READY.set()  # starts as "ready"
 
 import random
 
 def suggest_meals(macros, tdee):
     foods = {
-        "chicken_breast": {"label": "Chicken breast",       "kcal": 165, "p": 31,   "f": 3.6, "c": 0},
-        "salmon":         {"label": "Salmon",               "kcal": 208, "p": 20,   "f": 13,  "c": 0},
-        "tofu":           {"label": "Tofu",                 "kcal": 76,  "p": 8,    "f": 4.8, "c": 1.9},
-        "egg":            {"label": "Egg (whole)",          "kcal": 155, "p": 13,   "f": 11,  "c": 1.1},
-        "greek_yogurt":   {"label": "Greek yogurt",         "kcal": 59,  "p": 10,   "f": 0.4, "c": 3.6},
-        "white_rice":     {"label": "White rice (cooked)",  "kcal": 130, "p": 2.7,  "f": 0.3, "c": 28},
-        "quinoa":         {"label": "Quinoa (cooked)",      "kcal": 120, "p": 4.4,  "f": 1.9, "c": 21.3},
-        "oats":           {"label": "Oats (dry)",           "kcal": 389, "p": 16.9, "f": 6.9, "c": 66.3},
-        "sweet_potato":   {"label": "Sweet potato",         "kcal": 86,  "p": 1.6,  "f": 0.1, "c": 20.1},
-        "banana":         {"label": "Banana",               "kcal": 89,  "p": 1.1,  "f": 0.3, "c": 23},
-        "avocado":        {"label": "Avocado",              "kcal": 160, "p": 2,    "f": 15,  "c": 9},
-        "olive_oil":      {"label": "Olive oil",            "kcal": 884, "p": 0,    "f": 100, "c": 0},
-        "almonds":        {"label": "Almonds",              "kcal": 579, "p": 21,   "f": 50,  "c": 22},
-        "cottage_cheese": {"label": "Cottage cheese",       "kcal": 98,  "p": 11,   "f": 4.3, "c": 3.4},
-        "apple":          {"label": "Apple",                "kcal": 52,  "p": 0.3,  "f": 0.2, "c": 14},
+        "chicken_breast": {"label": "Chicken breast",      "kcal": 165, "p": 31,   "f": 3.6, "c": 0},
+        "salmon":         {"label": "Salmon",              "kcal": 208, "p": 20,   "f": 13,  "c": 0},
+        "tofu":           {"label": "Tofu",                "kcal": 76,  "p": 8,    "f": 4.8, "c": 1.9},
+        "egg":            {"label": "Egg (whole)",         "kcal": 155, "p": 13,   "f": 11,  "c": 1.1},
+        "greek_yogurt":   {"label": "Greek yogurt",        "kcal": 59,  "p": 10,   "f": 0.4, "c": 3.6},
+        "white_rice":     {"label": "White rice (cooked)", "kcal": 130, "p": 2.7,  "f": 0.3, "c": 28},
+        "quinoa":         {"label": "Quinoa (cooked)",     "kcal": 120, "p": 4.4,  "f": 1.9, "c": 21.3},
+        "oats":           {"label": "Oats (dry)",          "kcal": 389, "p": 16.9, "f": 6.9, "c": 66.3},
+        "sweet_potato":   {"label": "Sweet potato",        "kcal": 86,  "p": 1.6,  "f": 0.1, "c": 20.1},
+        "banana":         {"label": "Banana",              "kcal": 89,  "p": 1.1,  "f": 0.3, "c": 23},
+        "avocado":        {"label": "Avocado",             "kcal": 160, "p": 2,    "f": 15,  "c": 9},
+        "olive_oil":      {"label": "Olive oil",           "kcal": 884, "p": 0,    "f": 100, "c": 0},
+        "almonds":        {"label": "Almonds",             "kcal": 579, "p": 21,   "f": 50,  "c": 22},
+        "cottage_cheese": {"label": "Cottage cheese",      "kcal": 98,  "p": 11,   "f": 4.3, "c": 3.4},
+        "apple":          {"label": "Apple",               "kcal": 52,  "p": 0.3,  "f": 0.2, "c": 14},
     }
 
     proteins = ["chicken_breast", "salmon", "tofu", "egg", "greek_yogurt", "cottage_cheese"]
@@ -51,11 +52,11 @@ def suggest_meals(macros, tdee):
     random.shuffle(carbs)
     random.shuffle(fats)
 
-    meals_list     = ["Breakfast", "Lunch", "Dinner", "Snack"]
-    protein_total  = macros.get("protein_g", 0) or 0
-    fats_total     = macros.get("fats_g", 0) or 0
-    carbs_total    = macros.get("carbs_g", 0) or 0
-    meal_perc      = {"Breakfast": 0.25, "Lunch": 0.33, "Dinner": 0.30, "Snack": 0.12}
+    meals_list    = ["Breakfast", "Lunch", "Dinner", "Snack"]
+    protein_total = macros.get("protein_g", 0) or 0
+    fats_total    = macros.get("fats_g", 0)    or 0
+    carbs_total   = macros.get("carbs_g", 0)   or 0
+    meal_perc     = {"Breakfast": 0.25, "Lunch": 0.33, "Dinner": 0.30, "Snack": 0.12}
 
     meal_plans = []
     for i, meal_name in enumerate(meals_list):
@@ -146,69 +147,110 @@ def gen_frames_for_exercise(exercise_name="squat"):
             time.sleep(0.2)
         return
 
-    with _CAM_LOCK:  # only one stream holds the webcam at a time
+    # Wait for previous stream to fully release the camera (max 2s)
+    _CAM_READY.wait(timeout=2.0)
+    _CAM_READY.clear()  # mark camera as in use
+
+    cap = None
+    try:
         cap = cv2.VideoCapture(0)
+    except Exception as e:
+        print(f"[camera] VideoCapture failed: {e}")
+        _CAM_READY.set()
+        return
 
-        if not cap.isOpened():
-            msg_frame = visualisations.make_text_frame("Could not open webcam.")
-            while True:
-                ret, jpg = cv2.imencode('.jpg', msg_frame)
-                yield (b'--frame\r\n'
-                       b'Content-Type: image/jpeg\r\n\r\n' + jpg.tobytes() + b'\r\n')
-                time.sleep(0.2)
-            return
+    try:
+        opened = cap.isOpened()
+    except Exception as e:
+        print(f"[camera] isOpened() failed: {e}")
+        _CAM_READY.set()
+        return
 
-        mp_pose = mp.solutions.pose
-        pose    = mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5)
+    if not opened:
+        print("[camera] Could not open webcam.")
+        _CAM_READY.set()
+        return
 
-        try:
-            while True:
-                success, frame = cap.read()
-                if not success:
+    mp_pose = mp.solutions.pose
+    pose    = mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5)
+
+    print(f"[camera] {exercise_name} stream started.")
+
+    try:
+        while True:
+            # Exit cleanly if a newer stream has taken over
+            with _ACTIVE_EXERCISE_LOCK:
+                if _ACTIVE_EXERCISE["name"] != exercise_name:
+                    print(f"[camera] {exercise_name} superseded, stopping.")
                     break
 
+            try:
+                success, frame = cap.read()
+            except Exception:
+                break
+
+            if not success:
+                time.sleep(0.05)
+                continue
+
+            try:
                 frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 results   = pose.process(frame_rgb)
+            except Exception:
+                continue
 
-                annotated = frame.copy()
-                info      = {}
+            annotated = frame.copy()
+            info      = {}
 
-                if results.pose_landmarks:
-                    module = EXERCISE_MAP.get(exercise_name, EXERCISE_MAP.get("squat"))
-                    try:
-                        annotated, info = module.process_frame(
-                            annotated, results.pose_landmarks, mp_pose)
-                    except Exception:
-                        annotated = frame.copy()
-                        info      = {"status": "module_error"}
-
-                # update shared info — single lock, no nesting
+            if results.pose_landmarks:
+                module = EXERCISE_MAP.get(exercise_name, EXERCISE_MAP.get("squat"))
                 try:
-                    with LATEST_VIDEO_INFO_LOCK:
-                        LATEST_VIDEO_INFO.clear()
-                        if info:
-                            for k, v in info.items():
-                                if isinstance(v, (int, float, str, bool, type(None), list, dict)):
-                                    LATEST_VIDEO_INFO[k] = v
-                                else:
-                                    LATEST_VIDEO_INFO[k] = str(v)
-                        LATEST_VIDEO_INFO["_ts"]      = time.time()
-                        LATEST_VIDEO_INFO["exercise"] = exercise_name
-                except Exception:
-                    pass
+                    annotated, info = module.process_frame(
+                        annotated, results.pose_landmarks, mp_pose)
+                except Exception as e:
+                    print(f"[module error] {e}")
+                    annotated = frame.copy()
+                    info      = {"status": "module_error"}
 
-                ret, buffer  = cv2.imencode('.jpg', annotated)
-                frame_bytes  = buffer.tobytes()
+            try:
+                with LATEST_VIDEO_INFO_LOCK:
+                    LATEST_VIDEO_INFO.clear()
+                    if info:
+                        for k, v in info.items():
+                            if isinstance(v, (int, float, str, bool, type(None), list, dict)):
+                                LATEST_VIDEO_INFO[k] = v
+                            else:
+                                LATEST_VIDEO_INFO[k] = str(v)
+                    LATEST_VIDEO_INFO["_ts"]      = time.time()
+                    LATEST_VIDEO_INFO["exercise"] = exercise_name
+            except Exception:
+                pass
+
+            try:
+                ret, buffer = cv2.imencode('.jpg', annotated)
                 yield (b'--frame\r\n'
-                       b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
-        finally:
+                       b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
+            except Exception:
+                break
+
+    finally:
+        try:
             cap.release()
+        except Exception:
+            pass
+        try:
             pose.close()
+        except Exception:
+            pass
+        _CAM_READY.set()  # signal camera is free
+        print(f"[camera] {exercise_name} stream closed.")
 
 
 @app.route("/video_feed")
 def video_feed():
     exercise = request.args.get("exercise", "squat")
+    with _ACTIVE_EXERCISE_LOCK:
+        _ACTIVE_EXERCISE["name"] = exercise
     return Response(
         gen_frames_for_exercise(exercise),
         mimetype='multipart/x-mixed-replace; boundary=frame')

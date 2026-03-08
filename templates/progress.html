@@ -4,34 +4,106 @@
 
 {% block content %}
 
-<style>
-    @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&display=swap');
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,700;0,900;1,700&display=swap"
+    rel="stylesheet">
 
-    .progress-wrap {
+<style>
+    :root {
+        --red: #e8001d;
+        --surface: #111;
+        --surface2: #1a1a1a;
+        --border: rgba(255, 255, 255, 0.07);
+        --muted: #555;
+    }
+
+    body.progress {
+        background: #0a0a0a !important;
+        color: #f0f0f0;
+    }
+
+    body.progress::before {
+        background: none !important;
+    }
+
+    .page {
         max-width: 960px;
         margin: 0 auto;
-        text-align: left;
+        padding: 36px 32px 60px;
     }
 
-    .progress-wrap h2 {
-        font-family: 'Syne', sans-serif;
-        font-size: clamp(24px, 4vw, 38px);
-        font-weight: 800;
-        color: #fff;
-        margin-bottom: 4px;
+    @media (max-width: 600px) {
+        .page {
+            padding: 20px 16px 40px;
+        }
     }
 
-    .progress-wrap .subtitle {
-        color: rgba(255, 255, 255, 0.75);
+    /* ── Header ── */
+    .page-header {
         margin-bottom: 28px;
-        font-size: 15px;
+        animation: fadeUp .5s both;
     }
 
+    .page-header h2 {
+        font-family: 'Barlow Condensed', sans-serif;
+        font-weight: 900;
+        font-size: clamp(36px, 5vw, 56px);
+        text-transform: uppercase;
+        line-height: 1;
+        color: #fff;
+    }
+
+    .page-header h2 span {
+        color: var(--red);
+    }
+
+    .page-header p {
+        color: var(--muted);
+        font-size: 14px;
+        margin-top: 6px;
+    }
+
+    /* ── Action buttons ── */
+    .progress-actions {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 24px;
+        flex-wrap: wrap;
+        animation: fadeUp .5s .05s both;
+    }
+
+    .act-btn {
+        padding: 9px 16px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        color: #666;
+        font-family: 'Barlow Condensed', sans-serif;
+        font-weight: 700;
+        font-size: 13px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        cursor: pointer;
+        transition: all .2s;
+    }
+
+    .act-btn:hover {
+        border-color: rgba(255, 255, 255, 0.15);
+        color: #fff;
+    }
+
+    .act-btn.danger:hover {
+        background: rgba(232, 0, 29, 0.15);
+        border-color: rgba(232, 0, 29, 0.3);
+        color: #ff4d63;
+    }
+
+    /* ── Stat tiles ── */
     .stat-bar {
         display: grid;
         grid-template-columns: repeat(4, 1fr);
-        gap: 12px;
-        margin-bottom: 24px;
+        gap: 10px;
+        margin-bottom: 20px;
+        animation: fadeUp .5s .1s both;
     }
 
     @media (max-width: 700px) {
@@ -41,39 +113,64 @@
     }
 
     .stat-tile {
-        background: rgba(255, 255, 255, 0.92);
-        border-radius: 14px;
-        padding: 16px 18px;
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 18px 16px;
     }
 
-    .stat-tile .label {
-        font-size: 11px;
+    .stat-tile .s-label {
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 0.1em;
         text-transform: uppercase;
-        letter-spacing: 0.08em;
-        color: #888;
-        margin-bottom: 6px;
+        color: var(--muted);
+        margin-bottom: 8px;
     }
 
-    .stat-tile .value {
-        font-family: 'DM Mono', monospace;
-        font-size: 28px;
-        font-weight: 500;
-        color: #111;
+    .stat-tile .s-val {
+        font-family: 'Barlow Condensed', sans-serif;
+        font-weight: 900;
+        font-size: 36px;
+        color: #fff;
         line-height: 1;
     }
 
-    .stat-tile .sub {
-        font-size: 12px;
-        color: #aaa;
+    .stat-tile.accent .s-val {
+        color: var(--red);
+    }
+
+    .stat-tile .s-sub {
+        font-size: 11px;
+        color: var(--muted);
         margin-top: 4px;
     }
 
+    /* ── Cards ── */
+    .p-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 22px;
+    }
+
+    .card-title {
+        font-family: 'Barlow Condensed', sans-serif;
+        font-weight: 700;
+        font-size: 12px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 16px;
+    }
+
+    /* ── Charts row ── */
     .progress-cols {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 16px;
-        margin-bottom: 20px;
+        gap: 12px;
+        margin-bottom: 12px;
+        animation: fadeUp .5s .2s both;
     }
 
     @media (max-width: 760px) {
@@ -82,51 +179,114 @@
         }
     }
 
-    .p-card {
-        background: rgba(255, 255, 255, 0.93);
-        border-radius: 14px;
-        padding: 20px;
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.10);
-        color: #111;
-    }
-
-    .p-card h3 {
-        font-family: 'Syne', sans-serif;
-        font-size: 15px;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
-        color: #444;
-        margin: 0 0 14px 0;
-    }
-
     canvas {
         width: 100% !important;
         height: 180px !important;
         display: block;
     }
 
+    /* ── Personal bests ── */
+    .pb-section {
+        margin-bottom: 12px;
+        animation: fadeUp .5s .3s both;
+    }
+
+    .pb-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+        gap: 10px;
+    }
+
+    .pb-item {
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 14px 10px;
+        text-align: center;
+        transition: border-color .2s;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .pb-item::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background: var(--red);
+        transform: scaleX(0);
+        transform-origin: left;
+        transition: transform .3s;
+    }
+
+    .pb-item:hover::before {
+        transform: scaleX(1);
+    }
+
+    .pb-item:hover {
+        border-color: rgba(255, 255, 255, 0.12);
+    }
+
+    .pb-ex {
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 6px;
+    }
+
+    .pb-val {
+        font-family: 'Barlow Condensed', sans-serif;
+        font-weight: 900;
+        font-size: 28px;
+        color: var(--red);
+        line-height: 1;
+    }
+
+    .pb-label {
+        font-size: 10px;
+        color: #444;
+        margin-top: 3px;
+    }
+
+    /* ── History ── */
+    .history-section {
+        animation: fadeUp .5s .4s both;
+    }
+
     .filter-pills {
         display: flex;
         flex-wrap: wrap;
         gap: 6px;
-        margin-bottom: 14px;
+        margin-bottom: 16px;
     }
 
     .filter-pill {
-        padding: 5px 12px;
-        border-radius: 999px;
-        border: 1.5px solid #ddd;
-        background: #f5f5f5;
+        font-family: 'Barlow Condensed', sans-serif;
+        font-weight: 700;
         font-size: 12px;
-        cursor: pointer;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        padding: 5px 14px;
+        border-radius: 6px;
+        border: 1px solid var(--border);
+        background: transparent;
         color: #555;
-        transition: all .15s;
+        cursor: pointer;
+        transition: all .2s;
+    }
+
+    .filter-pill:hover {
+        color: #fff;
+        border-color: rgba(255, 255, 255, 0.15);
     }
 
     .filter-pill.active {
-        background: #007bff;
-        border-color: #007bff;
+        background: var(--red);
+        border-color: var(--red);
         color: #fff;
     }
 
@@ -142,18 +302,19 @@
 
     table.history th {
         text-align: left;
-        padding: 8px 10px;
-        font-size: 11px;
+        padding: 8px 12px;
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 0.1em;
         text-transform: uppercase;
-        letter-spacing: 0.06em;
-        color: #888;
-        border-bottom: 1px solid #eee;
+        color: var(--muted);
+        border-bottom: 1px solid var(--border);
     }
 
     table.history td {
-        padding: 9px 10px;
-        border-bottom: 1px solid #f0f0f0;
-        color: #222;
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--border);
+        color: #888;
     }
 
     table.history tr:last-child td {
@@ -161,141 +322,125 @@
     }
 
     table.history tr:hover td {
-        background: #fafafa;
+        background: rgba(255, 255, 255, 0.02);
     }
 
-    .badge {
+    .ex-badge {
         display: inline-block;
-        padding: 3px 8px;
-        border-radius: 999px;
-        font-size: 11px;
-        font-weight: 600;
-        background: #e8f4fd;
-        color: #0070d8;
+        padding: 3px 10px;
+        border-radius: 4px;
+        font-family: 'Barlow Condensed', sans-serif;
+        font-weight: 700;
+        font-size: 12px;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        background: rgba(232, 0, 29, 0.12);
+        color: #ff4d63;
+        border: 1px solid rgba(232, 0, 29, 0.2);
     }
 
-    .empty-state {
-        text-align: center;
-        padding: 40px 20px;
-        color: #aaa;
-    }
-
-    .empty-state .icon {
-        font-size: 40px;
-        margin-bottom: 10px;
-    }
-
-    .empty-state p {
-        font-size: 14px;
-        margin: 0;
-    }
-
-    .progress-actions {
-        display: flex;
-        gap: 10px;
-        margin-bottom: 20px;
-        flex-wrap: wrap;
-    }
-
-    .danger-btn {
-        background: transparent;
-        border: 1.5px solid rgba(255, 255, 255, 0.3);
-        color: rgba(255, 255, 255, 0.85);
-        padding: 9px 16px;
-        border-radius: 10px;
-        cursor: pointer;
-        font-size: 13px;
-        transition: all .15s;
-    }
-
-    .danger-btn:hover {
-        background: rgba(220, 53, 69, 0.75);
-        border-color: transparent;
+    .rep-num {
+        font-family: 'Barlow Condensed', sans-serif;
+        font-weight: 900;
+        font-size: 18px;
         color: #fff;
     }
 
-    .pb-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-        gap: 10px;
+    .del-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: #333;
+        font-size: 14px;
+        transition: color .2s;
+        padding: 2px 6px;
     }
 
-    .pb-item {
-        background: linear-gradient(135deg, #f0f8ff, #e8f4fd);
-        border-radius: 10px;
-        padding: 12px;
+    .del-btn:hover {
+        color: #ff4d63;
+    }
+
+    /* ── Empty state ── */
+    .empty-state {
         text-align: center;
+        padding: 40px 20px;
+        color: var(--muted);
     }
 
-    .pb-item .pb-ex {
-        font-size: 11px;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        color: #888;
-        margin-bottom: 4px;
+    .empty-state .icon {
+        font-size: 36px;
+        margin-bottom: 12px;
     }
 
-    .pb-item .pb-val {
-        font-family: 'DM Mono', monospace;
-        font-size: 22px;
-        font-weight: 500;
-        color: #007bff;
+    .empty-state p {
+        font-size: 13px;
+        line-height: 1.6;
     }
 
-    .pb-item .pb-label {
-        font-size: 10px;
-        color: #aaa;
+    @keyframes fadeUp {
+        from {
+            opacity: 0;
+            transform: translateY(16px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
     }
 </style>
 
-<div class="progress-wrap">
-    <h2>📈 Progress</h2>
-    <p class="subtitle">Your saved workout sets — keep pushing.</p>
+<div class="page">
+
+    <div class="page-header">
+        <h2>Pro<span>gress</span></h2>
+        <p>Your saved workout sets — keep pushing.</p>
+    </div>
 
     <div class="progress-actions">
-        <button class="danger-btn" onclick="clearAllData()">🗑 Clear all data</button>
-        <button class="danger-btn" onclick="exportCSV()">⬇ Export CSV</button>
+        <button class="act-btn danger" onclick="clearAllData()">🗑 Clear All</button>
+        <button class="act-btn" onclick="exportCSV()">⬇ Export CSV</button>
     </div>
 
-    <!-- Stats bar -->
+    <!-- Stats -->
     <div class="stat-bar">
-        <div class="stat-tile">
-            <div class="label">Total Sets</div>
-            <div class="value" id="statSets">0</div>
-            <div class="sub">saved</div>
+        <div class="stat-tile accent">
+            <div class="s-label">Total Sets</div>
+            <div class="s-val" id="statSets">0</div>
+            <div class="s-sub">saved</div>
         </div>
         <div class="stat-tile">
-            <div class="label">Total Reps</div>
-            <div class="value" id="statReps">0</div>
-            <div class="sub">all time</div>
+            <div class="s-label">Total Reps</div>
+            <div class="s-val" id="statReps">0</div>
+            <div class="s-sub">all time</div>
         </div>
         <div class="stat-tile">
-            <div class="label">Exercises</div>
-            <div class="value" id="statExercises">0</div>
-            <div class="sub">unique</div>
+            <div class="s-label">Exercises</div>
+            <div class="s-val" id="statExercises">0</div>
+            <div class="s-sub">unique</div>
         </div>
         <div class="stat-tile">
-            <div class="label">Last Session</div>
-            <div class="value" id="statLast" style="font-size:16px; padding-top:6px;">—</div>
-            <div class="sub">date</div>
+            <div class="s-label">Last Session</div>
+            <div class="s-val" id="statLast" style="font-size:20px;padding-top:6px;">—</div>
+            <div class="s-sub">date</div>
         </div>
     </div>
 
-    <!-- Charts row -->
+    <!-- Charts -->
     <div class="progress-cols">
         <div class="p-card">
-            <h3>Reps Over Time</h3>
+            <div class="card-title">Reps Over Time</div>
             <canvas id="chartTimeline"></canvas>
         </div>
         <div class="p-card">
-            <h3>Reps by Exercise</h3>
+            <div class="card-title">Reps by Exercise</div>
             <canvas id="chartByExercise"></canvas>
         </div>
     </div>
 
     <!-- Personal bests -->
-    <div class="p-card" style="margin-bottom:16px;">
-        <h3>Personal Bests — max reps in a set</h3>
+    <div class="p-card pb-section">
+        <div class="card-title">Personal Bests — max reps in a set</div>
         <div class="pb-grid" id="pbGrid">
             <div class="empty-state">
                 <p>No data yet.</p>
@@ -303,9 +448,9 @@
         </div>
     </div>
 
-    <!-- History table -->
-    <div class="p-card">
-        <h3>Set History</h3>
+    <!-- History -->
+    <div class="p-card history-section">
+        <div class="card-title">Set History</div>
         <div class="filter-pills" id="filterPills">
             <span class="filter-pill active" data-ex="all">All</span>
         </div>
@@ -313,12 +458,13 @@
             <div id="historyContainer">
                 <div class="empty-state">
                     <div class="icon">🏋️</div>
-                    <p>No sets saved yet.<br>Complete a workout and hit <strong>Save</strong> to see your history here.
-                    </p>
+                    <p>No sets saved yet.<br>Complete a workout and hit <strong>Save Set</strong> to see your history
+                        here.</p>
                 </div>
             </div>
         </div>
     </div>
+
 </div>
 
 <script>
@@ -329,9 +475,7 @@
         catch (e) { return []; }
     }
 
-    function saveSetsData(arr) {
-        localStorage.setItem(LS_KEY, JSON.stringify(arr));
-    }
+    function saveSetsData(arr) { localStorage.setItem(LS_KEY, JSON.stringify(arr)); }
 
     function clearAllData() {
         if (!confirm('Delete all saved workout data? This cannot be undone.')) return;
@@ -371,7 +515,7 @@
         } catch (e) { return iso; }
     }
 
-    /* ── Line chart ── */
+    /* ── Line chart (dark) ── */
     function drawLineChart(canvasId, labels, values, color) {
         const canvas = document.getElementById(canvasId);
         if (!canvas) return;
@@ -383,13 +527,13 @@
         ctx.scale(dpr, dpr);
         const W = rect.width, H = rect.height;
         const pad = { top: 16, right: 16, bottom: 32, left: 36 };
-        const chartW = W - pad.left - pad.right;
-        const chartH = H - pad.top - pad.bottom;
+        const cW = W - pad.left - pad.right;
+        const cH = H - pad.top - pad.bottom;
 
         ctx.clearRect(0, 0, W, H);
 
         if (!values.length) {
-            ctx.fillStyle = '#bbb';
+            ctx.fillStyle = '#333';
             ctx.font = '13px sans-serif';
             ctx.textAlign = 'center';
             ctx.fillText('No data yet', W / 2, H / 2);
@@ -398,31 +542,31 @@
 
         const maxVal = Math.max(...values, 1);
 
-        // grid lines
-        ctx.strokeStyle = '#f0f0f0';
-        ctx.lineWidth = 1;
+        // grid
         for (let i = 0; i <= 4; i++) {
-            const y = pad.top + chartH - (i / 4) * chartH;
-            ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + chartW, y); ctx.stroke();
-            ctx.fillStyle = '#bbb';
+            const y = pad.top + cH - (i / 4) * cH;
+            ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+            ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + cW, y); ctx.stroke();
+            ctx.fillStyle = '#444';
             ctx.font = '10px sans-serif';
             ctx.textAlign = 'right';
             ctx.fillText(Math.round((i / 4) * maxVal), pad.left - 4, y + 3);
         }
 
         const pts = values.map((v, i) => ({
-            x: pad.left + (i / Math.max(values.length - 1, 1)) * chartW,
-            y: pad.top + chartH - (v / maxVal) * chartH
+            x: pad.left + (i / Math.max(values.length - 1, 1)) * cW,
+            y: pad.top + cH - (v / maxVal) * cH
         }));
 
         // gradient fill
-        const grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + chartH);
-        grad.addColorStop(0, color + '33');
+        const grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + cH);
+        grad.addColorStop(0, color + '44');
         grad.addColorStop(1, color + '00');
         ctx.beginPath();
-        ctx.moveTo(pts[0].x, pad.top + chartH);
+        ctx.moveTo(pts[0].x, pad.top + cH);
         pts.forEach(p => ctx.lineTo(p.x, p.y));
-        ctx.lineTo(pts[pts.length - 1].x, pad.top + chartH);
+        ctx.lineTo(pts[pts.length - 1].x, pad.top + cH);
         ctx.closePath();
         ctx.fillStyle = grad;
         ctx.fill();
@@ -439,7 +583,7 @@
         pts.forEach(p => {
             ctx.beginPath();
             ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
-            ctx.fillStyle = '#fff';
+            ctx.fillStyle = '#111';
             ctx.fill();
             ctx.strokeStyle = color;
             ctx.lineWidth = 2;
@@ -448,17 +592,16 @@
 
         // x labels
         const step = Math.max(1, Math.floor(labels.length / 6));
-        ctx.fillStyle = '#aaa';
+        ctx.fillStyle = '#444';
         ctx.font = '10px sans-serif';
         ctx.textAlign = 'center';
         labels.forEach((l, i) => {
-            if (i % step === 0 || i === labels.length - 1) {
+            if (i % step === 0 || i === labels.length - 1)
                 ctx.fillText(l, pts[i].x, H - 6);
-            }
         });
     }
 
-    /* ── Bar chart ── */
+    /* ── Bar chart (dark) ── */
     function drawBarChart(canvasId, labels, values) {
         const canvas = document.getElementById(canvasId);
         if (!canvas) return;
@@ -470,13 +613,13 @@
         ctx.scale(dpr, dpr);
         const W = rect.width, H = rect.height;
         const pad = { top: 16, right: 16, bottom: 48, left: 36 };
-        const chartW = W - pad.left - pad.right;
-        const chartH = H - pad.top - pad.bottom;
+        const cW = W - pad.left - pad.right;
+        const cH = H - pad.top - pad.bottom;
 
         ctx.clearRect(0, 0, W, H);
 
         if (!values.length) {
-            ctx.fillStyle = '#bbb';
+            ctx.fillStyle = '#333';
             ctx.font = '13px sans-serif';
             ctx.textAlign = 'center';
             ctx.fillText('No data yet', W / 2, H / 2);
@@ -484,17 +627,16 @@
         }
 
         const maxVal = Math.max(...values, 1);
-        const palette = ['#007bff', '#28a745', '#fd7e14', '#6f42c1', '#20c997', '#dc3545', '#ffc107', '#17a2b8'];
-        const gap = chartW / values.length;
+        const palette = ['#e8001d', '#ff4d63', '#ff8099', '#c4001a', '#ff1a34', '#ff6680', '#e8001d', '#ff4d63'];
+        const gap = cW / values.length;
         const barW = Math.min(40, gap * 0.65);
 
-        // grid
-        ctx.strokeStyle = '#f0f0f0';
-        ctx.lineWidth = 1;
         for (let i = 0; i <= 4; i++) {
-            const y = pad.top + chartH - (i / 4) * chartH;
-            ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + chartW, y); ctx.stroke();
-            ctx.fillStyle = '#bbb';
+            const y = pad.top + cH - (i / 4) * cH;
+            ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+            ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + cW, y); ctx.stroke();
+            ctx.fillStyle = '#444';
             ctx.font = '10px sans-serif';
             ctx.textAlign = 'right';
             ctx.fillText(Math.round((i / 4) * maxVal), pad.left - 4, y + 3);
@@ -502,8 +644,12 @@
 
         values.forEach((v, i) => {
             const x = pad.left + gap * i + (gap - barW) / 2;
-            const barH = (v / maxVal) * chartH;
-            const y = pad.top + chartH - barH;
+            const barH = (v / maxVal) * cH;
+            const y = pad.top + cH - barH;
+
+            // bar glow
+            ctx.shadowColor = palette[i % palette.length];
+            ctx.shadowBlur = 8;
             ctx.fillStyle = palette[i % palette.length];
             ctx.beginPath();
             if (ctx.roundRect) {
@@ -512,18 +658,19 @@
                 ctx.rect(x, y, barW, barH);
             }
             ctx.fill();
+            ctx.shadowBlur = 0;
 
-            // value on top
-            ctx.fillStyle = '#555';
+            // value
+            ctx.fillStyle = '#aaa';
             ctx.font = 'bold 11px sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText(v, x + barW / 2, y - 4);
+            ctx.fillText(v, x + barW / 2, y - 5);
 
-            // rotated x label
+            // rotated label
             ctx.save();
             ctx.translate(x + barW / 2, H - 6);
             ctx.rotate(-Math.PI / 5);
-            ctx.fillStyle = '#888';
+            ctx.fillStyle = '#555';
             ctx.font = '10px sans-serif';
             ctx.textAlign = 'right';
             ctx.fillText(fmtEx(labels[i]), 0, 0);
@@ -542,7 +689,7 @@
         renderHistory();
     }
 
-    /* ── History table ── */
+    /* ── History ── */
     function renderHistory() {
         const sets = loadSets();
         const container = document.getElementById('historyContainer');
@@ -551,42 +698,37 @@
 
         if (!sorted.length) {
             container.innerHTML = `
-        <div class="empty-state">
-          <div class="icon">🏋️</div>
-          <p>No sets saved yet.<br>Complete a workout and hit <strong>Save</strong> to see your history here.</p>
-        </div>`;
+                <div class="empty-state">
+                    <div class="icon">🏋️</div>
+                    <p>No sets saved yet.<br>Complete a workout and hit <strong>Save Set</strong> to see your history here.</p>
+                </div>`;
             return;
         }
 
-        // map filtered index back to original index for deletion
-        const originalIndices = [...filtered.keys()].map(i =>
-            sets.indexOf(filtered[i])
-        ).reverse();
+        const originalIndices = [...filtered.keys()]
+            .map(i => sets.indexOf(filtered[i]))
+            .reverse();
 
         const rows = sorted.map((s, i) => `
-      <tr>
-        <td>${fmtDateTime(s.dt)}</td>
-        <td><span class="badge">${fmtEx(s.exercise)}</span></td>
-        <td style="font-family:'DM Mono',monospace; font-weight:500;">${s.reps}</td>
-        <td>
-          <button onclick="deleteSet(${originalIndices[i]})"
-            style="background:none;border:none;cursor:pointer;color:#ccc;font-size:14px;"
-            title="Delete this set">✕</button>
-        </td>
-      </tr>`).join('');
+            <tr>
+                <td>${fmtDateTime(s.dt)}</td>
+                <td><span class="ex-badge">${fmtEx(s.exercise)}</span></td>
+                <td><span class="rep-num">${s.reps}</span></td>
+                <td><button class="del-btn" onclick="deleteSet(${originalIndices[i]})" title="Delete">✕</button></td>
+            </tr>`).join('');
 
         container.innerHTML = `
-      <table class="history">
-        <thead>
-          <tr>
-            <th>Date / Time</th>
-            <th>Exercise</th>
-            <th>Reps</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>${rows}</tbody>
-      </table>`;
+            <table class="history">
+                <thead>
+                    <tr>
+                        <th>Date / Time</th>
+                        <th>Exercise</th>
+                        <th>Reps</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>`;
     }
 
     function deleteSet(index) {
@@ -596,11 +738,9 @@
         init();
     }
 
-    /* ── Main init ── */
+    /* ── Init ── */
     function init() {
         const sets = loadSets();
-
-        // stats
         const totalReps = sets.reduce((s, x) => s + (Number(x.reps) || 0), 0);
         const exercises = [...new Set(sets.map(s => s.exercise))];
         const lastDt = sets.length ? fmtDate(sets[sets.length - 1].dt) : '—';
@@ -623,16 +763,14 @@
         });
         pillsEl.querySelector('[data-ex="all"]').onclick = () => setFilter('all');
 
-        // timeline chart (last 20 sets)
+        // timeline
         const recent = sets.slice(-20);
-        drawLineChart(
-            'chartTimeline',
+        drawLineChart('chartTimeline',
             recent.map(s => fmtDate(s.dt)),
             recent.map(s => Number(s.reps) || 0),
-            '#007bff'
-        );
+            '#e8001d');
 
-        // by-exercise bar chart
+        // by exercise
         const repsByEx = {};
         sets.forEach(s => {
             repsByEx[s.exercise] = (repsByEx[s.exercise] || 0) + (Number(s.reps) || 0);
@@ -651,11 +789,11 @@
                 if (!pbByEx[s.exercise] || r > pbByEx[s.exercise]) pbByEx[s.exercise] = r;
             });
             pbGrid.innerHTML = Object.entries(pbByEx).map(([ex, val]) => `
-        <div class="pb-item">
-          <div class="pb-ex">${fmtEx(ex)}</div>
-          <div class="pb-val">${val}</div>
-          <div class="pb-label">best set</div>
-        </div>`).join('');
+                <div class="pb-item">
+                    <div class="pb-ex">${fmtEx(ex)}</div>
+                    <div class="pb-val">${val}</div>
+                    <div class="pb-label">best set</div>
+                </div>`).join('');
         }
 
         renderHistory();

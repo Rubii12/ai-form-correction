@@ -116,12 +116,48 @@
         border-radius: 14px;
         overflow: hidden;
         position: relative;
+        min-height: 240px;
     }
 
     .video-panel img {
         width: 100%;
         height: auto;
         display: block;
+    }
+
+    .video-switching {
+        position: absolute;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        background: rgba(10, 10, 10, 0.85);
+        font-family: 'Barlow Condensed', sans-serif;
+        font-weight: 700;
+        font-size: 16px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #555;
+        gap: 10px;
+    }
+
+    .video-switching.show {
+        display: flex;
+    }
+
+    .switch-spinner {
+        width: 18px;
+        height: 18px;
+        border: 2px solid #333;
+        border-top-color: var(--red);
+        border-radius: 50%;
+        animation: spin .7s linear infinite;
+    }
+
+    @keyframes spin {
+        to {
+            transform: rotate(360deg);
+        }
     }
 
     .video-label {
@@ -405,6 +441,10 @@
         <div class="video-panel">
             <img id="liveFeed" src="{{ url_for('video_feed') }}?exercise={{ request.args.get('exercise','squat') }}"
                 alt="Live camera feed">
+            <div class="video-switching" id="videoSwitching">
+                <div class="switch-spinner"></div>
+                Switching...
+            </div>
             <div class="video-label">
                 <div class="rec-dot"></div>
                 <span id="videoLabel">{{ request.args.get('exercise','squat')|replace('_',' ')|title }}</span>
@@ -424,7 +464,7 @@
                 </div>
                 <div class="metric-card">
                     <div class="m-label">Status</div>
-                    <div class="m-val" id="liveStatus" style="font-size:15px; padding-top:5px;">—</div>
+                    <div class="m-val" id="liveStatus" style="font-size:15px;padding-top:5px;">—</div>
                 </div>
             </div>
 
@@ -457,6 +497,7 @@
 <script>
     const FEED_IMG = document.getElementById('liveFeed');
     const videoLabel = document.getElementById('videoLabel');
+    const videoSwitching = document.getElementById('videoSwitching');
     const liveRepsEl = document.getElementById('liveReps');
     const liveAngleEl = document.getElementById('liveAngle');
     const liveStatusEl = document.getElementById('liveStatus');
@@ -507,7 +548,17 @@
     }
 
     function switchFeed(ex) {
-        FEED_IMG.src = "{{ url_for('video_feed') }}?exercise=" + encodeURIComponent(ex);
+        // Show switching overlay
+        videoSwitching.classList.add('show');
+        FEED_IMG.src = '';
+
+        // Wait 2.5s for old stream to fully close before requesting new one
+        setTimeout(() => {
+            FEED_IMG.src = "{{ url_for('video_feed') }}?exercise=" + encodeURIComponent(ex);
+            FEED_IMG.onload = () => videoSwitching.classList.remove('show');
+            // Fallback: hide overlay after 5s regardless
+            setTimeout(() => videoSwitching.classList.remove('show'), 5000);
+        }, 2500);
     }
 
     pills.forEach(pill => {
