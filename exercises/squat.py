@@ -2,7 +2,6 @@
 import cv2
 import time
 
-from streamlit import status
 from utils import angle_calculations
 
 _STATE = {"smoothed": None, "in_down": False, "rep_count": 0, "last_rep_ts": 0.0, "last_angle": None, "last_ts": None, "tick": 0}
