@@ -3,7 +3,7 @@ flask-sock
 numpy
 matplotlib
 opencv-python-headless
-mediapipe
+mediapipe==0.10.14
 gunicorn
 gevent
 gevent-websocket
