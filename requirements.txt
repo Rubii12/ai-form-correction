@@ -1,8 +1,9 @@
 flask
-streamlit
+flask-sock
 numpy
 matplotlib
-flask-sock
 opencv-python-headless
 mediapipe
-numpy
+gunicorn
+gevent
+gevent-websocket
