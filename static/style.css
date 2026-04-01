@@ -25,3 +25,7 @@ input:focus {
     outline: 3px solid rgba(0, 123, 255, 0.16);
     outline-offset: 2px;
 }
+
+.s-text {
+    transition: opacity 0.2s ease;
+}

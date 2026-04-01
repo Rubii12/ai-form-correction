@@ -767,6 +767,33 @@
         }
     });
 
+    let _sugList = [];
+    let _sugIndex = 0;
+    let _sugTimer = null;
+    let _lastSugKey = '';
+
+    function rotateSuggestions(suggestions) {
+        const key = suggestions.join('|');
+        if (key === _lastSugKey) return;
+        _lastSugKey = key;
+        _sugList = suggestions;
+        _sugIndex = 0;
+
+        if (_sugTimer) { clearInterval(_sugTimer); _sugTimer = null; }
+
+        liveSugEl.textContent = _sugList[0];
+
+        if (_sugList.length <= 1) return;
+
+        _sugTimer = setInterval(() => {
+            _sugIndex = (_sugIndex + 1) % _sugList.length;
+            liveSugEl.style.opacity = '0';
+            setTimeout(() => {
+                liveSugEl.textContent = _sugList[_sugIndex];
+                liveSugEl.style.opacity = '1';
+            }, 200);
+        }, 3000);
+    }
     // ── Update info panel ─────────────────────────────────────────────────────
     function updateInfo(info) {
         const angle = info.knee_angle ?? info.elbow_angle ?? info.hip_angle ?? info.angle ?? null;
@@ -783,7 +810,12 @@
                 sug = Array.isArray(arr) ? arr.join(' · ') : info.suggestions;
             } catch { sug = info.suggestions; }
         }
-        liveSugEl.textContent = sug || 'No suggestions yet.';
+        if (sug) {
+            const arr = Array.isArray(info.suggestions) ? info.suggestions : [sug];
+            rotateSuggestions(arr);
+        } else {
+            liveSugEl.textContent = 'No suggestions yet.';
+        }
 
         const q = info.rep_quality;
         if (q) {
