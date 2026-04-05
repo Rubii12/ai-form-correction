@@ -44,7 +44,7 @@
 
         0%,
         100% {
-            opacity: 0.8;
+            opacity: .8;
             transform: translate(-50%, -50%) scale(1);
         }
 
@@ -139,7 +139,7 @@
     .hero-sub {
         font-size: clamp(15px, 2vw, 18px);
         color: #888;
-        max-width: 460px;
+        max-width: 480px;
         margin: 0 auto 48px;
         line-height: 1.6;
         animation: fadeUp .6s .35s both;
@@ -208,7 +208,7 @@
         border-radius: 12px;
         overflow: hidden;
         background: #111;
-        max-width: 560px;
+        max-width: 640px;
         width: 100%;
         margin: 0 auto 80px;
         animation: fadeUp .6s .55s both;
@@ -248,7 +248,7 @@
 
     .features {
         display: grid;
-        grid-template-columns: repeat(3, 1fr);
+        grid-template-columns: repeat(2, 1fr);
         gap: 1px;
         background: var(--border);
         border: 1px solid var(--border);
@@ -312,6 +312,20 @@
         line-height: 1.6;
     }
 
+    .feat-tag {
+        display: inline-block;
+        margin-top: 12px;
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--red);
+        background: rgba(232, 0, 29, 0.08);
+        border: 1px solid rgba(232, 0, 29, 0.2);
+        padding: 3px 10px;
+        border-radius: 999px;
+    }
+
     .feat-arrow {
         position: absolute;
         bottom: 20px;
@@ -368,12 +382,13 @@
     <div class="hero-bg-text">TRAIN</div>
 
     <div class="hero">
+
         <div class="hero-eyebrow">AI-Powered Form Correction</div>
 
         <h1>Push Your <em>Limits</em></h1>
 
         <p class="hero-sub">
-            Real-time pose tracking, rep counting, and personalised coaching — all from your camera.
+            Real-time pose tracking, rep counting, and personalised coaching — all from your browser, no app needed.
         </p>
 
         <div class="cta-group">
@@ -393,7 +408,11 @@
             </div>
             <div class="stat">
                 <div class="stat-val">AI</div>
-                <div class="stat-label">Form Feedback</div>
+                <div class="stat-label">Form Coach</div>
+            </div>
+            <div class="stat">
+                <div class="stat-val">🇮🇳</div>
+                <div class="stat-label">Indian Meals</div>
             </div>
         </div>
 
@@ -401,22 +420,37 @@
             <a class="feat" href="{{ url_for('workout') }}">
                 <span class="feat-icon">🎥</span>
                 <div class="feat-title">Live Tracking</div>
-                <p class="feat-desc">Mediapipe pose detection tracks your joints in real time and counts every rep.</p>
+                <p class="feat-desc">MediaPipe pose detection tracks your joints in real time, counts every rep and
+                    coaches your form with phase-aware cues.</p>
+                <span class="feat-tag">8 exercises</span>
+                <span class="feat-arrow">→</span>
+            </a>
+            <a class="feat" href="{{ url_for('workout') }}">
+                <span class="feat-icon">🧠</span>
+                <div class="feat-title">Form Guide</div>
+                <p class="feat-desc">Animated correct-form preview before every exercise so you always know exactly how
+                    to move before you start.</p>
+                <span class="feat-tag">New</span>
                 <span class="feat-arrow">→</span>
             </a>
             <a class="feat" href="{{ url_for('nutrition') }}">
                 <span class="feat-icon">🥗</span>
                 <div class="feat-title">Nutrition</div>
-                <p class="feat-desc">Calculate your TDEE and get a personalised meal plan built around your goals.</p>
+                <p class="feat-desc">Calculate your TDEE and get a personalised Indian meal plan built around your macro
+                    targets and fitness goals.</p>
+                <span class="feat-tag">Indian recipes</span>
                 <span class="feat-arrow">→</span>
             </a>
             <a class="feat" href="{{ url_for('progress') }}">
                 <span class="feat-icon">📈</span>
                 <div class="feat-title">Progress</div>
-                <p class="feat-desc">Track sets over time, see personal bests, and export your history as CSV.</p>
+                <p class="feat-desc">Track sets over time, visualise reps by exercise, see personal bests, and export
+                    your full history as CSV.</p>
+                <span class="feat-tag">Charts + history</span>
                 <span class="feat-arrow">→</span>
             </a>
         </div>
+
     </div>
 </div>
 {% endblock %}
