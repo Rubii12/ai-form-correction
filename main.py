@@ -25,100 +25,150 @@ LATEST_VIDEO_INFO_LOCK = threading.Lock()
 
 import random
 
-def suggest_meals(macros, tdee):
-    foods = {
-        "chicken_breast": {"label": "Chicken breast",      "kcal": 165, "p": 31,   "f": 3.6, "c": 0},
-        "salmon":         {"label": "Salmon",              "kcal": 208, "p": 20,   "f": 13,  "c": 0},
-        "tofu":           {"label": "Tofu",                "kcal": 76,  "p": 8,    "f": 4.8, "c": 1.9},
-        "egg":            {"label": "Egg (whole)",         "kcal": 155, "p": 13,   "f": 11,  "c": 1.1},
-        "greek_yogurt":   {"label": "Greek yogurt",        "kcal": 59,  "p": 10,   "f": 0.4, "c": 3.6},
-        "white_rice":     {"label": "White rice (cooked)", "kcal": 130, "p": 2.7,  "f": 0.3, "c": 28},
-        "quinoa":         {"label": "Quinoa (cooked)",     "kcal": 120, "p": 4.4,  "f": 1.9, "c": 21.3},
-        "oats":           {"label": "Oats (dry)",          "kcal": 389, "p": 16.9, "f": 6.9, "c": 66.3},
-        "sweet_potato":   {"label": "Sweet potato",        "kcal": 86,  "p": 1.6,  "f": 0.1, "c": 20.1},
-        "banana":         {"label": "Banana",              "kcal": 89,  "p": 1.1,  "f": 0.3, "c": 23},
-        "avocado":        {"label": "Avocado",             "kcal": 160, "p": 2,    "f": 15,  "c": 9},
-        "olive_oil":      {"label": "Olive oil",           "kcal": 884, "p": 0,    "f": 100, "c": 0},
-        "almonds":        {"label": "Almonds",             "kcal": 579, "p": 21,   "f": 50,  "c": 22},
-        "cottage_cheese": {"label": "Cottage cheese",      "kcal": 98,  "p": 11,   "f": 4.3, "c": 3.4},
-        "apple":          {"label": "Apple",               "kcal": 52,  "p": 0.3,  "f": 0.2, "c": 14},
+import os
+import requests
+from dotenv import load_dotenv
+
+load_dotenv()
+SPOONACULAR_KEY = os.getenv("SPOONACULAR_API_KEY")
+
+MEAL_SLOTS = [
+    {"name": "Breakfast", "icon": "🥣", "pct": 0.25},
+    {"name": "Lunch",     "icon": "🍱", "pct": 0.33},
+    {"name": "Dinner",    "icon": "🍛", "pct": 0.30},
+    {"name": "Snack",     "icon": "🥜", "pct": 0.12},
+]
+
+def suggest_meals_spoonacular(macros, tdee):
+    """Fetch real Indian meals from Spoonacular matching macro targets."""
+    meals = []
+
+    for slot in MEAL_SLOTS:
+        target_kcal    = int(tdee * slot["pct"])
+        target_protein = int(macros.get("protein_g", 0) * slot["pct"])
+        target_carbs   = int(macros.get("carbs_g",   0) * slot["pct"])
+        target_fats    = int(macros.get("fats_g",    0) * slot["pct"])
+
+        try:
+            resp = requests.get(
+                "https://api.spoonacular.com/recipes/complexSearch",
+                params={
+                    "apiKey":         SPOONACULAR_KEY,
+                    "cuisine":        "Indian",
+                    "number":         3,
+                    "addRecipeNutrition": True,
+                    "minCalories":    int(target_kcal * 0.75),
+                    "maxCalories":    int(target_kcal * 1.25),
+                    "minProtein":     max(0, target_protein - 10),
+                    "maxProtein":     target_protein + 15,
+                    "sort":           "random",
+                },
+                timeout=6
+            )
+            data = resp.json()
+            results = data.get("results", [])
+
+            if results:
+                # Pick first result
+                r       = results[0]
+                title   = r.get("title", "Indian Dish")
+                r_id    = r.get("id")
+                image   = r.get("image", "")
+
+                # Extract nutrition
+                nutrients = {}
+                for n in r.get("nutrition", {}).get("nutrients", []):
+                    nutrients[n["name"]] = round(n["amount"])
+
+                kcal    = nutrients.get("Calories",      target_kcal)
+                protein = nutrients.get("Protein",       target_protein)
+                carbs   = nutrients.get("Carbohydrates", target_carbs)
+                fats    = nutrients.get("Fat",           target_fats)
+
+                # Get ingredients summary
+                ingredients = [
+                    i["name"].title()
+                    for i in r.get("nutrition", {}).get("ingredients", [])[:5]
+                ]
+
+                recipe_url = f"https://spoonacular.com/recipes/{title.replace(' ','-').lower()}-{r_id}"
+
+                meals.append({
+                    "name":        slot["name"],
+                    "icon":        slot["icon"],
+                    "title":       title,
+                    "kcal":        kcal,
+                    "protein":     protein,
+                    "carbs":       carbs,
+                    "fats":        fats,
+                    "ingredients": ingredients,
+                    "image":       image,
+                    "url":         recipe_url,
+                    "source":      "spoonacular"
+                })
+            else:
+                # No results — fall back
+                meals.append(_fallback_meal(slot, macros, tdee))
+
+        except Exception as e:
+            print(f"[spoonacular] error for {slot['name']}: {e}")
+            meals.append(_fallback_meal(slot, macros, tdee))
+
+    return meals
+
+
+def _fallback_meal(slot, macros, tdee):
+    """Simple fallback if API fails."""
+    indian_meals = {
+        "Breakfast": {"title": "Oats Upma",        "ingredients": ["Oats", "Vegetables", "Mustard seeds", "Curry leaves", "Green chilli"]},
+        "Lunch":     {"title": "Dal Rice",          "ingredients": ["Toor dal", "Rice", "Ghee", "Turmeric", "Jeera"]},
+        "Dinner":    {"title": "Roti Sabzi",        "ingredients": ["Whole wheat roti", "Mixed vegetables", "Paneer", "Spices", "Oil"]},
+        "Snack":     {"title": "Chana Chaat",       "ingredients": ["Chickpeas", "Onion", "Tomato", "Chaat masala", "Lemon"]},
+    }
+    base  = indian_meals.get(slot["name"], {"title": "Indian Meal", "ingredients": []})
+    kcal  = int(tdee * slot["pct"])
+    return {
+        "name":        slot["name"],
+        "icon":        slot["icon"],
+        "title":       base["title"],
+        "kcal":        kcal,
+        "protein":     int(macros.get("protein_g", 0) * slot["pct"]),
+        "carbs":       int(macros.get("carbs_g",   0) * slot["pct"]),
+        "fats":        int(macros.get("fats_g",    0) * slot["pct"]),
+        "ingredients": base["ingredients"],
+        "image":       "",
+        "url":         "",
+        "source":      "fallback"
     }
 
-    proteins = ["chicken_breast", "salmon", "tofu", "egg", "greek_yogurt", "cottage_cheese"]
-    carbs    = ["white_rice", "quinoa", "oats", "sweet_potato", "banana", "apple"]
-    fats     = ["avocado", "olive_oil", "almonds"]
+from utils import nutrition as nut
+@app.route("/nutrition", methods=["GET", "POST"])
+def nutrition():
+    result = None
+    meals  = None
+    if request.method == "POST":
+        try:
+            weight   = float(request.form.get("weight"))
+            height   = float(request.form.get("height"))
+            age      = int(request.form.get("age"))
+            sex      = request.form.get("sex")
+            activity = request.form.get("activity")
+            goal     = request.form.get("goal")
+        except Exception:
+            return render_template("nutrition.html", result=None, meals=None,
+                                   error="Please enter valid inputs.")
 
-    random.shuffle(proteins)
-    random.shuffle(carbs)
-    random.shuffle(fats)
+        bmr    = nut.calculate_bmr(weight, height, age, sex)
+        tdee   = nut.calculate_tdee(bmr, activity)
+        macros = nut.macronutrients(tdee, goal)
+        result = {"bmr": round(bmr), "tdee": round(tdee), **macros}
 
-    meals_list    = ["Breakfast", "Lunch", "Dinner", "Snack"]
-    protein_total = macros.get("protein_g", 0) or 0
-    fats_total    = macros.get("fats_g", 0)    or 0
-    carbs_total   = macros.get("carbs_g", 0)   or 0
-    meal_perc     = {"Breakfast": 0.25, "Lunch": 0.33, "Dinner": 0.30, "Snack": 0.12}
-
-    meal_plans = []
-    for i, meal_name in enumerate(meals_list):
-        perc     = meal_perc.get(meal_name, 0.25)
-        target_p = protein_total * perc
-        target_f = fats_total    * perc
-        target_c = carbs_total   * perc
-        items    = []
-
-        prot_key  = proteins[i % len(proteins)]
-        prot_info = foods[prot_key]
-        if prot_info["p"] > 0:
-            grams_prot = max(20, int(round((target_p / prot_info["p"]) * 100)))
-            items.append((prot_info["label"], f"{grams_prot} g"))
+        if SPOONACULAR_KEY:
+            meals = suggest_meals_spoonacular(macros, result["tdee"])
         else:
-            items.append((foods["greek_yogurt"]["label"], "100 g"))
+            meals = suggest_meals(macros, result["tdee"])  # old fallback
 
-        carb_key  = carbs[i % len(carbs)]
-        carb_info = foods[carb_key]
-        if target_c > 8 and carb_info["c"] > 0:
-            grams_c = max(30, int(round((target_c / carb_info["c"]) * 100)))
-            items.append((carb_info["label"], f"{grams_c} g"))
-        else:
-            items.append((foods["banana"]["label"], "1 medium"))
-
-        fat_key  = fats[i % len(fats)]
-        fat_info = foods[fat_key]
-        if target_f >= 4 and fat_info["f"] > 0:
-            grams_f = max(8, int(round((target_f / fat_info["f"]) * 100)))
-            items.append((fat_info["label"], f"{grams_f} g"))
-        else:
-            items.append((foods["olive_oil"]["label"], "5 g (1 tsp)"))
-
-        if meal_name == "Breakfast":
-            items.append((foods["oats"]["label"], "30 g"))
-        elif meal_name == "Snack":
-            items.append((foods["almonds"]["label"], "20 g"))
-        elif meal_name == "Lunch" and carb_key == "white_rice":
-            items.append((foods["apple"]["label"], "1 medium"))
-
-        kcal = 0
-        for label, qty in items:
-            key = next((k for k, v in foods.items() if v["label"] == label), None)
-            if key:
-                if "g" in qty:
-                    q = int(qty.split()[0])
-                    kcal += foods[key]["kcal"] * (q / 100.0)
-                else:
-                    if qty.strip().lower() in ("1 medium", "1 serving", "1 piece"):
-                        kcal += foods[key]["kcal"] * 0.5
-                    elif "tsp" in qty:
-                        kcal += foods[key]["kcal"] * 0.05
-                    else:
-                        kcal += foods[key]["kcal"] * 0.3
-            else:
-                kcal += 50
-
-        meal_plans.append({"name": meal_name, "items": items, "kcal": int(round(kcal))})
-
-    rest = meal_plans[1:]
-    random.shuffle(rest)
-    return [meal_plans[0]] + rest
+    return render_template("nutrition.html", result=result, meals=meals)
 
 
 # ── Routes ──────────────────────────────────────────────────────────────────
@@ -267,36 +317,6 @@ def reset_reps():
         return jsonify({"ok": True, "exercise": exercise})
     return jsonify({"ok": False, "reason": "unknown exercise"}), 400
 
-
-from utils import nutrition as nut
-
-@app.route("/nutrition", methods=["GET", "POST"])
-def nutrition():
-    result = None
-    meals  = None
-    if request.method == "POST":
-        try:
-            weight   = float(request.form.get("weight"))
-            height   = float(request.form.get("height"))
-            age      = int(request.form.get("age"))
-            sex      = request.form.get("sex")
-            activity = request.form.get("activity")
-            goal     = request.form.get("goal")
-        except Exception:
-            return render_template("nutrition.html", result=None, meals=None,
-                                   error="Please enter valid inputs.")
-
-        bmr    = nut.calculate_bmr(weight, height, age, sex)
-        tdee   = nut.calculate_tdee(bmr, activity)
-        macros = nut.macronutrients(tdee, goal)
-        result = {"bmr": round(bmr), "tdee": round(tdee), **macros}
-
-        try:
-            meals = suggest_meals(macros, result["tdee"])
-        except Exception:
-            meals = None
-
-    return render_template("nutrition.html", result=result, meals=meals)
 
 
 if __name__ == "__main__":

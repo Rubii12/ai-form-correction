@@ -2,8 +2,8 @@ flask
 flask-sock
 numpy
 matplotlib
+mediapipe
 opencv-python-headless
-mediapipe==0.10.14
 gunicorn
-gevent
-gevent-websocket
+requests
+python-dotenv

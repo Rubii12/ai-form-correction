@@ -546,32 +546,72 @@
         {% if meals %}
         <div class="meal-section">
             <div class="section-heading">Meal <span>Plan</span></div>
-            <div class="section-sub">Approximate portions to hit your daily targets.</div>
+            <div class="section-sub">Real Indian recipes matched to your daily targets.</div>
 
             <div class="meal-grid">
                 {% for meal in meals %}
-                {% if "Breakfast" in meal.name %}{% set icon = "🥣" %}
-                {% elif "Lunch" in meal.name %}{% set icon = "🍱" %}
-                {% elif "Dinner" in meal.name %}{% set icon = "🍛" %}
-                {% else %}{% set icon = "🥜" %}{% endif %}
-
                 <div class="meal-card">
                     <div class="meal-top">
                         <div class="meal-name-row">
-                            <div class="meal-icon-box">{{ icon }}</div>
-                            <div class="meal-name">{{ meal.name }}</div>
+                            <div class="meal-icon-box">{{ meal.icon }}</div>
+                            <div>
+                                <div class="meal-name">{{ meal.name }}</div>
+                                <div style="font-size:12px; color:#666; margin-top:2px;">{{ meal.title }}</div>
+                            </div>
                         </div>
                         <div class="meal-kcal">{{ meal.kcal }} kcal</div>
                     </div>
+
+                    {% if meal.image %}
+                    <img src="{{ meal.image }}" alt="{{ meal.title }}"
+                        style="width:100%; height:140px; object-fit:cover; border-radius:8px; margin-bottom:14px;">
+                    {% endif %}
+
+                    <div style="display:flex; gap:10px; margin-bottom:14px;">
+                        <div style="flex:1; background:#1a1a1a; border-radius:8px; padding:10px; text-align:center;">
+                            <div
+                                style="font-size:10px; color:#555; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:4px;">
+                                Protein</div>
+                            <div
+                                style="font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:18px; color:#e8001d;">
+                                {{ meal.protein }}g</div>
+                        </div>
+                        <div style="flex:1; background:#1a1a1a; border-radius:8px; padding:10px; text-align:center;">
+                            <div
+                                style="font-size:10px; color:#555; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:4px;">
+                                Carbs</div>
+                            <div
+                                style="font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:18px; color:#f5a623;">
+                                {{ meal.carbs }}g</div>
+                        </div>
+                        <div style="flex:1; background:#1a1a1a; border-radius:8px; padding:10px; text-align:center;">
+                            <div
+                                style="font-size:10px; color:#555; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:4px;">
+                                Fats</div>
+                            <div
+                                style="font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:18px; color:#28a745;">
+                                {{ meal.fats }}g</div>
+                        </div>
+                    </div>
+
                     <ul class="meal-items">
-                        {% for item, qty in meal['items'] %}
+                        {% for ing in meal.ingredients %}
                         <li>
-                            <span class="item-name">🍴 {{ item }}</span>
-                            <span class="item-qty">{{ qty }}</span>
+                            <span class="item-name">🍴 {{ ing }}</span>
                         </li>
                         {% endfor %}
                     </ul>
-                    <div class="meal-note">Adjust portions to taste.</div>
+
+                    {% if meal.url %}
+                    <a href="{{ meal.url }}" target="_blank"
+                        style="display:inline-block; margin-top:12px; font-size:12px; color:#e8001d; text-decoration:none; font-weight:600;">
+                        View full recipe →
+                    </a>
+                    {% endif %}
+
+                    {% if meal.source == 'fallback' %}
+                    <div class="meal-note">⚠ Suggested meal — API unavailable.</div>
+                    {% endif %}
                 </div>
                 {% endfor %}
             </div>
